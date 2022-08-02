@@ -138,7 +138,11 @@ FFCportfolio.ts <- xts(apply(FFCFactors.ts, 1, mean), order.by = (FFCFactors.df[
 
 VaR.ts <- xts(VaR[1:835], order.by = FFCFactors.df[1:835,1])
 as.numeric(VaR[1:835])
-VaRplot(0.05, FFCportfolio.ts[1:835], VaR.ts)
+end <- length(stocks.plret.df[,1])
+start <- end-835
+VaRplot(0.05, FFCportfolio.ts[start:end], VaR.ts)
+
+
 #### forgot reverse trafo of simulated values
 VaRTest(alpha = 0.05, FFCportfolio.ts[1:835], VaR.ts, 0.95)
 VaR.df <- data.frame(VaR.ts)
