@@ -1,0 +1,136 @@
+---
+title: "DCC-GARCH"
+author: "Jan Heinrich Schlegel"
+date: "2022-08-02"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+#################################
+### Exploratory Data Analysis ###
+#################################
+
+
+# Don't forget to download newest version!
+# check whether dates are the same for stocks and factor returns
+library(tidyverse)
+library(magrittr)
+library(yfR)
+library(zoo)
+library(psych)
+library(tseries)
+library(broom)
+library(xts)
+
+tickers <- c("KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
+stock_data <- yf_get(tickers, first_date = "2000-12-29", last_date = "2011-12-30", 
+                     freq_data = "daily",  type_return = "log")
+stock_data
+
+# Only the first log return for each of the stocks is NA
+# i.e. our actual log returns begin on the 1st of January 2001
+sum(is.na(stock_data$ret_adjusted_prices))
+
+for (ticker_nr in 1:10){
+  assign(tickers[ticker_nr], stock_data %>% filter(ticker == tickers[ticker_nr]) %>% 
+           select(ticker, ref_date, ret_adjusted_prices) %>% na.omit())
+}
+View(PG)
+
+stocks.lret.df <- data.frame(Date = KO$ref_date, KO = KO$ret_adjusted_prices, XOM = XOM$ret_adjusted_prices, GE = GE$ret_adjusted_prices,
+                        IBM = IBM$ret_adjusted_prices, CVX = CVX$ret_adjusted_prices, RTX = RTX$ret_adjusted_prices, PG = PG$ret_adjusted_prices,
+                        CAT = CAT$ret_adjusted_prices, BA = BA$ret_adjusted_prices, MRK = MRK$ret_adjusted_prices)
+
+stocks.lret.df
+
+stocks.perclret.df <- data.frame(Date = KO$ref_date, apply(stocks.lret.df[,-1], 2, function(x)100*x))
+stocks.perclret.df
+
+
+summary.statistics <- function(dataframe, Datecol = TRUE){
+  if (Datecol == TRUE){
+    descr.stats <- psych::describe(dataframe[,-1])
+    JB.test <- apply(dataframe[,-1], 2, FUN = jarque.bera.test)
+  }
+  else{
+    descr.stats <- psych::describe(dataframe)
+    JB.test <- apply(dataframe, 2, FUN = jarque.bera.test)
+  }
+  JB.test.stat <- matrix(lapply(JB.test, function(x)return(x[1])))
+  tab <- data.frame(Mean = descr.stats[,3], Median = descr.stats[,5], SD = descr.stats[,4], MAD = descr.stats[,7],
+                    Min = descr.stats[,8], Max = descr.stats[,9], Skew = descr.stats[,11], Kurt = descr.stats[,12], JB = JB.test.stat)
+  rownames(tab) <- rownames(descr.stats)
+  return(tab)
+}
+summary.statistics(stocks.perclret.df)
+
+# Calculate portfolio returns of equally weighted portfolio
+portfolio.weights <- rep(1/10, 10)
+portfolio.plret.df <- data.frame(Date = stocks.perclret.df$Date, plret = apply(stocks.perclret.df[,-1], 1, function(x)x%*%portfolio.weights))
+# Alternatively: portfolio.perclret <- apply(stocks.perclret.df[,-1], 1, mean)
+
+plot(portfolio.plret.df$Date, portfolio.plret.df$plret, type = "h", main = "Daily Percentage Log-Returns of Portfolio", xlab = "Date", ylab = "Percentage Log-Returns")
+abline(h = 0, col = "grey")
+
+# Convert to time series
+portfolio.plret.ts <- xts(portfolio.plret.df$plret, order.by = portfolio.plret.df$Date)
+plot(portfolio.plret.ts)
+
+stocks.plret.ts <- xts(stocks.perclret.df[,-1], order.by = stocks.perclret.df$Date)
+stocks.plret.ts
+```
+
+```{r}
+library(rugarch)
+library(rmgarch)
+library(parallel)
+library(mvtnorm)
+set.seed(42)
+meanModel <- list(armaOrder = c(0,0), include.mean = FALSE)
+varModel <- list(model = "sGARCH", garchOrder = c(1,1))
+uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "norm")
+mspec <- multispec(replicate(10, uspec))
+dccspec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
+
+head(stocks.plret.ts)
+numcores <- detectCores()
+n <- length(stocks.perclret.df[,1])
+VaR <- numeric(n)
+cl <- makePSOCKcluster(numcores)
+start_time <- Sys.time()
+# fit <- list()
+# forecast <- list()
+
+n.window <- n-1000
+
+for (i in 1:n.window){
+  end <- i+999
+  stocks.window <- stocks.plret.ts[1:end]
+  fit <- dccfit(dccspec, stocks.plret.ts, cluster = cl)
+  forecast <- dccforecast(fit, n.ahead = 1, cluster = cl)
+  names(forecast@mforecast)
+  # sigma <- rcov(forecast) # rcov to extract conditional covariance matrix
+  sigma.m <- matrix(unlist(forecast@mforecast$H), nrow = 10, ncol = 10)
+  sigma.m
+  # mu <- as.numeric(fitted(forecast)) to extract conditional mean
+  mu.n <- as.numeric(forecast@mforecast$mu)
+  VaR[i] <- qmvnorm(0.05, tail = "lower.tail", mean = mu.n, sigma = sigma.m)$quantile
+}
+
+
+
+# roll.dcc <- dccroll(spec = dccspec, data = stocks.plret.ts, n.ahead = 1, n.start = 1, refit.every = 500, refit.window = "moving", window.size = 1000,  cluster = cl)
+stopCluster(cl)
+end_time <- Sys.time()
+end_time-start_time
+end <- n
+start <- end-length(VaR)
+VaRplot(0.05, stocks.plret.ts[start:end], VaR)
+```
+
