@@ -1,0 +1,152 @@
+---
+title: "Copula GARCH Test"
+author: "19-747-096 Jan Heinrich Schlegel"
+date: "2022-07-31"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(yfR)
+library(zoo)
+library(psych)
+library(tseries)
+library(broom)
+library(xts)
+```
+
+## Loading the data
+
+```{r}
+tickers <- c("KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
+stock_data <- yf_get(tickers, first_date = "2000-12-29", last_date = "2011-12-30", 
+                     freq_data = "daily",  type_return = "log")
+stock_data
+
+# Only the first log return for each of the stocks is NA
+# i.e. our actual log returns begin on the 1st of January 2001
+sum(is.na(stock_data$ret_adjusted_prices))
+
+for (ticker_nr in 1:10){
+  assign(tickers[ticker_nr], stock_data %>% filter(ticker == tickers[ticker_nr]) %>% 
+           select(ticker, ref_date, ret_adjusted_prices) %>% na.omit())
+}
+View(PG)
+
+stocks.lret.df <- data.frame(Date = KO$ref_date, KO = KO$ret_adjusted_prices, XOM = XOM$ret_adjusted_prices, GE = GE$ret_adjusted_prices,
+                        IBM = IBM$ret_adjusted_prices, CVX = CVX$ret_adjusted_prices, RTX = RTX$ret_adjusted_prices, PG = PG$ret_adjusted_prices,
+                        CAT = CAT$ret_adjusted_prices, BA = BA$ret_adjusted_prices, MRK = MRK$ret_adjusted_prices)
+
+stocks.lret.df
+
+stocks.perclret.df <- data.frame(Date = KO$ref_date, apply(stocks.lret.df[,-1], 2, function(x)100*x))
+stocks.perclret.df
+```
+
+## Creating Time Series Objects
+
+```{r}
+for (i in 1:10){
+  name <- paste("ts", i, sep="_")
+  assign(name, xts(stocks.perclret.df[,i+1], order.by = stocks.perclret.df$Date))
+}
+
+stocks.ts <- xts(stocks.perclret.df[,-1], order.by = stocks.perclret.df$Date)
+stocks.ts
+
+portfolio.plret.ts <- xts(portfolio.plret.df$plret, order.by = portfolio.plret.df$Date)
+```
+
+## AR(3)-NGARCH(1,1) to marginals
+```{r}
+library(rugarch)
+library(copula)
+library(rmgarch)
+library(parallel)
+set.seed(42)
+numcores <- detectCores()
+
+n.ahead <- 1
+n <- length(stocks.ts)-n.ahead+1
+meanModel <- list(armaOrder = c(3, 0))
+varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
+uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd")
+
+# Fit marginal AR(3)-GARCH model
+# fit <- apply(stocks.ts, 2, function(x)ugarchfit(uspec, data = x))
+# eps <- sapply(fit, residuals, standardize = TRUE)
+# nus <- sapply(fit, function(x)x@fit$coef[["shape"]])
+# U <- pobs(eps)
+# fitcop <- fitCopula(tCopula(dim = 10), data = U, method = "mpl")
+
+
+cspec <- cgarchspec(uspec = multispec(replicate(10, uspec)), VAR = FALSE, dccOrder = c(1,1), distribution.model = list(copula = c("mvnorm"), method = "ML", time.varying = TRUE))
+m <- 100
+n.window <- length(stocks.perclret.df[,1])-1000
+VaR <- numeric(n.window)
+cl <- makePSOCKcluster(numcores)
+for (i in 1:n.window){
+  end <- i+999
+  stocks.window <- stocks.ts[i:end]
+  cfit <- cgarchfit(cspec, stocks.window, cluster = cl)
+  csim <- cgarchsim(cfit, n.sim = 1, n.start = 0, m.sim = m, startMethod = "unconditional", cluster = cl)
+  port.dist <- apply(csim@msim$simZ, 3, mean)
+  port.dist
+  VaR[i] <- sort(port.dist)[0.05*m]
+}
+stopCluster(cl)
+VaR
+```
+
+
+## Factor Returns
+```{r}
+FFCFactors.ts <- xts(FFCFactors.df[,-c(1,5)], order.by = FFFactors.df$Date)
+FFCFactors.ts
+set.seed(42)
+numcores <- detectCores()
+
+n.ahead <- 1
+n <- length(stocks.ts)-n.ahead+1
+meanModel <- list(armaOrder = c(3, 0))
+varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
+uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd")
+
+cspec <- cgarchspec(uspec = multispec(replicate(4, uspec)), VAR = FALSE, dccOrder = c(1,1), distribution.model = list(copula = c("mvnorm"), method = "ML", time.varying = TRUE))
+m <- 100000
+n.window <- length(FFCFactors.ts)-1000
+VaR <- numeric(n.window)
+cl <- makePSOCKcluster(numcores)
+for (i in 1:n.window){
+  end <- i+999
+  factors.window <- FFCFactors.ts[i:end]
+  cfit <- cgarchfit(cspec, factors.window, cluster = cl)
+  csim <- cgarchsim(cfit, n.sim = 1, n.start = 0, m.sim = m, startMethod = "unconditional", cluster = cl)
+  port.dist <- apply(csim@msim$simZ, 3, mean)
+  port.dist
+  VaR[i] <- sort(port.dist)[0.05*m]
+}
+stopCluster(cl)
+VaR[1:835]
+plot(VaR)
+FFCportfolio.ts <- xts(apply(FFCFactors.ts, 1, mean), order.by = (FFCFactors.df[,1]))
+
+VaR.ts <- xts(VaR[1:835], order.by = FFCFactors.df[1:835,1])
+as.numeric(VaR[1:835])
+VaRplot(0.05, FFCportfolio.ts[1:835], VaR.ts)
+#### forgot reverse trafo of simulated values
+VaRTest(alpha = 0.05, FFCportfolio.ts[1:835], VaR.ts, 0.95)
+VaR.df <- data.frame(VaR.ts)
+write.csv(VaR.df, "../Old Test Code\\VaRCopula-GARCH.csv", row.names = TRUE)
+```
+
+
+```{r}
+write.csv(VaR.df, "../Old Test Code\\VaRCopula-GARCH.csv", row.names = TRUE)
+```
+
