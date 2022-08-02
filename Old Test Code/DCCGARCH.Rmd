@@ -131,6 +131,6 @@ end_time <- Sys.time()
 end_time-start_time
 end <- n
 start <- end-length(VaR)
-VaRplot(0.05, stocks.plret.ts[start:end], VaR)
+VaRplot(0.05, portfolio.plret.ts[start:end], VaR)
 ```
 
