@@ -7,9 +7,6 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
 library(tidyverse)
 library(magrittr)
 library(yfR)
@@ -23,6 +20,7 @@ library(copula)
 library(rmgarch)
 library(parallel)
 ```
+
 
 ## Loading the data
 
@@ -202,9 +200,10 @@ logret <- matrix(NA, nrow=100000, ncol=4) #nrow=nsim
 sqrt.h <- sqrtm(dcc.fcst.cov)
 sqrt.h
 logret <- matrix(rep(dcc.fcst.mu, each = 100000), ncol = 4)+t(sqrt.h%*%t(res.sim))
-plot(logret[1:50, 3], type = "l")
-acumulated <- apply(logret, 2, cumsum)
-acumulated
+
+# plot(logret[1:50, 3], type = "l")
+# acumulated <- apply(logret, 2, cumsum)
+# acumulated
 ```
 
 ```{r}
