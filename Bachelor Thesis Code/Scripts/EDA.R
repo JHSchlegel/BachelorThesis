@@ -9,7 +9,7 @@ library(zoo)
 library(psych)
 library(tseries)
 library(broom)
-library(xts)
+
 
 
 # Load Factors and Create Factors Dataframe -------------------------------
@@ -101,7 +101,7 @@ portfolio.weights <- rep(1/10, 10)
 portfolio.plret.df <- data.frame(Date = stocks.plret.df$Date, 
                                  Portfolio = apply(stocks.plret.df[,-1], 1, function(x)x%*%portfolio.weights))
 View(portfolio.plret.df)
-## Alternatively: portfolio.plret <- data.frame(Date = stocks.plret.df$Date, Portfolio = apply(stocks.plret.df[,-1], 1, mean))
+## Alternatively: portfolio.plret.df <- data.frame(Date = stocks.plret.df$Date, Portfolio = apply(stocks.plret.df[,-1], 1, mean))
 
 ## Visualise portfolio plrets
 par(mfrow=c(1,2))
@@ -140,8 +140,3 @@ summary.statistics(portfolio.plret.df, multiple.rets = FALSE)
 
 
 
-# Convert to time series
-portfolio.plret.ts <- xts(portfolio.plret.df$plret, order.by = as.Date(portfolio.plret.df$Date))
-
-stocks.plret.ts <- xts(stocks.plret.df[,-1], order.by = as.Date(stocks.plret.df$Date))
-stocks.ts
