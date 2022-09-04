@@ -51,20 +51,20 @@ write.csv(uni_normal_GARCH_VaR, "Data\\VaR\\Uni_Normal_GARCH_VaR.csv", row.names
 
 
 lambda <- 0.94
-ewma.meanModel <- list(armaOrder=c(0,0), include.mean=TRUE)
-ewma.varModel <- list(model="iGARCH", garchOrder=c(1,1))
-ewma.spec <- ugarchspec(variance.model= ewma.varModel, mean.model= ewma.meanModel,  
+uni_ewma.meanModel <- list(armaOrder=c(0,0), include.mean=TRUE)
+uni_ewma.varModel <- list(model="iGARCH", garchOrder=c(1,1))
+uni_ewma.spec <- ugarchspec(variance.model= ewma.varModel, mean.model= ewma.meanModel,  
                         distribution.model="norm", fixed.pars=list(omega=0, alpha = 1-lambda))
 cl <- makePSOCKcluster(numcores)
-ewma_GARCH.roll <- ugarchroll(uni_normal.spec, portfolio.plret.ts, n.start = 1000, refit.every = 1,
+uni_ewma.roll <- ugarchroll(uni_ewma.spec, portfolio.plret.ts, n.start = 1000, refit.every = 1,
                                refit.window = "moving", solver = "hybrid",
                                calculate.VaR = TRUE, VaR.alpha = c(0.01, 0.05),
                                cluster = cl, keep.coef = FALSE)
 stopCluster(cl)
-ewma_GARCH_VaR <- data.frame(Date = portfolio.plret.df$Date[-c(1:1000)], alpha.1perc = ewma_GARCH.roll@forecast$VaR[,1],
-                             alpha.5perc = ewma_GARCH.roll@forecast$VaR[,2])
-head(ewma_GARCH_VaR)
-write.csv(ewma_GARCH_VaR, "Data\\VaR\\EWMA_GARCH_VaR.csv", row.names = FALSE)
+uni_ewma_VaR <- data.frame(Date = portfolio.plret.df$Date[-c(1:1000)], alpha.1perc = uni_ewma.roll@forecast$VaR[,1],
+                             alpha.5perc = uni_ewma.roll@forecast$VaR[,2])
+head(uni_ewma_VaR)
+write.csv(uni_ewma_VaR, "Data\\VaR\\Uni_EWMA_VaR.csv", row.names = FALSE)
 
 
 # Univariate t-GJR-GARCH(1,1) ---------------------------------------------
@@ -73,7 +73,7 @@ uni_t_gjr.meanModel <- list(armaOrder = c(0,0), include.mean = TRUE)
 uni_t_gjr.varModel <- list(model = "gjrGARCH", garchOrder = c(1,1))
 uni_t_gjr.spec <- ugarchspec(variance.model = uni_t_gjr.varModel, mean.model = uni_t_gjr.meanModel, distribution.model = "std")
 cl <- makePSOCKcluster(numcores)
-uni_t_gjr_GARCH.roll <- ugarchroll(uni_normal.spec, portfolio.plret.ts, n.start = 1000, refit.every = 1,
+uni_t_gjr_GARCH.roll <- ugarchroll(uni_t_gjr.spec, portfolio.plret.ts, n.start = 1000, refit.every = 1,
                               refit.window = "moving", solver = "hybrid",
                               calculate.VaR = TRUE, VaR.alpha = c(0.01, 0.05),
                               cluster = cl, keep.coef = FALSE)
@@ -92,7 +92,7 @@ uni_skewt_NGARCH.varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOr
 uni_skewt_NGARCH.spec <- ugarchspec(variance.model = uni_skewt_NGARCH.varModel, mean.model = uni_skewt_NGARCH.meanModel, 
                                     distribution.model = "sstd")
 cl <- makePSOCKcluster(numcores)
-uni_skewt_NGARCH.roll <- ugarchroll(uni_normal.spec, portfolio.plret.ts, n.start = 1000, refit.every = 1,
+uni_skewt_NGARCH.roll <- ugarchroll(uni_skewt_NGARCH.spec, portfolio.plret.ts, n.start = 1000, refit.every = 1,
                               refit.window = "moving", solver = "hybrid",
                               calculate.VaR = TRUE, VaR.alpha = c(0.01, 0.05),
                               cluster = cl, keep.coef = FALSE)
@@ -107,9 +107,26 @@ write.csv(uni_skewt_NGARCH_VaR, "Data\\VaR\\Uni_Skewt_NGARCH.csv", row.names = F
 ######################function for dataframe and head()
 
 
-
-
-
 # Multivariate Normal DCC-GARCH(1,1) --------------------------------------
 
 
+portfolio.weights <- rep(1/10, 10)
+dcc.meanModel <- list(armaOrder = c(0,0), include.mean = TRUE)
+dcc.varModel <- list(model = "sGARCH", garchOrder = c(1,1))
+dcc.uspec <- ugarchspec(variance.model = dcc.varModel, mean.model = dcc.meanModel, distribution.model = "norm")
+dcc.mspec <- multispec(replicate(10, dcc.uspec))
+dcc.spec <- dccspec(dcc.mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
+
+cl <- makeCluster(cl)
+multi_dcc.roll <- dccroll(spec = dcc.spec, data = stocks.plret.ts, n.ahead = 1, n.start = 1000, refit.every = 1, refit.window = "moving", window.size = 1000,  cluster = cl)
+stopCluster(cl)
+
+n <- length(stocks.perclret.df[,1])
+sigma.pf <- numeric(n)
+dcc.cov <- rcov(multi_dcc.roll) # rcov to extract forecasted Covariance matrix; rcor would extract forecasted Correlation matrix
+for (i in 1:n.window) dcc_sigma_pf[i] <- portfolio.weights %*% dcc.cov[,,i] %*% portfolio.weights
+multi_dcc_VaR <- data.frame(Date = portfolio.plret.df$Date[-c(1:1000)])
+multi_dcc_VaR$alpha.1perc <- sapply(dcc_sigma_pf, function(x) x*qnorm(0.01, 0, 1, lower.tail = TRUE))
+multi_dcc_VaR$alpha.5perc <-  sapply(dcc_sigma_pf, function(x) x*qnorm(0.05, 0, 1, lower.tail = TRUE))
+head(multi_dcc_VaR)
+write.csv(multi_dcc_VaR, "Data\\VaR\\Multi_DCC_GARCH.csv")
