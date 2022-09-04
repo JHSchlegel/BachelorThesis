@@ -121,8 +121,9 @@ cl <- makeCluster(cl)
 multi_dcc.roll <- dccroll(spec = dcc.spec, data = stocks.plret.ts, n.ahead = 1, n.start = 1000, refit.every = 1, refit.window = "moving", window.size = 1000,  cluster = cl)
 stopCluster(cl)
 
-n <- length(stocks.perclret.df[,1])
-sigma.pf <- numeric(n)
+n <- length(stocks.plret.df[,1])
+n.window <- n-1000
+dcc_sigma_pf <- numeric(n.window)
 dcc.cov <- rcov(multi_dcc.roll) # rcov to extract forecasted Covariance matrix; rcor would extract forecasted Correlation matrix
 for (i in 1:n.window) dcc_sigma_pf[i] <- portfolio.weights %*% dcc.cov[,,i] %*% portfolio.weights
 multi_dcc_VaR <- data.frame(Date = portfolio.plret.df$Date[-c(1:1000)])
