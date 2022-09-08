@@ -116,6 +116,10 @@ lines(density(portfolio.plret.df$Portfolio), col = "red")
 # Calculate Summary Statistics --------------------------------------------
 
 
+#' Summary Statistics
+#'
+#' @param dataframe Dataframe for which we want to calculate the summary statistics
+#' @param multiple.rets Boolean whether there are multiple return columns or not
 summary.statistics <- function(dataframe, multiple.rets =  TRUE){
   descr.stats <- psych::describe(dataframe[,-1])
   ## Conduct Jarque-Bera-Test
