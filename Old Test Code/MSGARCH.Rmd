@@ -76,7 +76,7 @@ n.window <- n-1000
 
 for (i in 1:n.window){
   end <- i+999
-  stocks.window <- stocks.plret.ts[1:end]
+  stocks.window <- stocks.plret.ts[i:end]
   fit.mixed <- FitMCMC(spec = spec, stocks.window)
   VaR[i] <- as.numeric(Risk(fit.mixed, alpha = 0.01, do.es = FALSE, nahead = 1L)$VaR)
 }
