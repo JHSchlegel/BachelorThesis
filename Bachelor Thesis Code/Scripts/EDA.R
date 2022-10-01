@@ -3,7 +3,6 @@
 #=================================#
 
 library(tidyverse)
-library(magrittr)
 library(yfR)
 library(zoo)
 library(psych)
@@ -15,9 +14,9 @@ library(broom)
 # Load Factors and Create Factors Dataframe -------------------------------
 
 
-FFFactors.df <- read.csv("./Data/FamaFrenchFactorsDaily.csv", header = TRUE)
-View(FFFactors.df)
-MomFactor.df <- read.csv("./Data/MomentumFactorDaily.csv", header = TRUE)
+FFFactors <- read.csv("./Data/FamaFrenchFactorsDaily.csv", header = TRUE)
+View(FFFactors)
+MomFactor <- read.csv("./Data/MomentumFactorDaily.csv", header = TRUE)
 View(MomFactor)
 
 
@@ -30,14 +29,18 @@ all.equal(Date.fff, Date.mom)
 # All dates are the same for this period
 
 ## Construct factor return dataframe for the period in question
-FFFactors.df <- FFFactors.df %<>% 
-  rename(Date = X, MRP = Mkt.RF, SMB=SMB, HML=HML, RF=RF) %>% 
+FFFactors.df <- FFFactors %>% 
+  mutate(Date = X) %>% 
+  select(-X) %>% 
+  relocate(Date, .before = "Mkt.RF") %>% 
   mutate(Date = as.Date(Date, format = "%Y%m%d")) %>%
   filter((Date >= "2001-01-02") & (Date <= "2011-12-30"))
 View(FFFactors.df)
 
-MomFactor.df <- MomFactor.df %<>% 
-  rename(Date = X, Mom = Mom) %>% 
+MomFactor.df <- MomFactor %>% 
+  mutate(Date = X) %>% 
+  select(-X) %>% 
+  relocate(Date, .before = "Mom") %>% 
   mutate(Date = as.Date(Date, format = "%Y%m%d")) %>% 
   filter((Date >= "2001-01-02") & (Date <= "2011-12-30"))
 View(MomFactor.df)
@@ -117,7 +120,6 @@ lines(density(portfolio.plret.df$Portfolio), col = "red")
 
 
 #' Summary Statistics
-#'
 #' @param dataframe Dataframe for which we want to calculate the summary statistics
 #' @param multiple.rets Boolean whether there are multiple return columns or not
 summary.statistics <- function(dataframe, multiple.rets =  TRUE){
