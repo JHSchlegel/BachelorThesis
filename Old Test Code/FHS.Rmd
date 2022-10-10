@@ -11,12 +11,16 @@ library(rugarch)
 library(rmgarch)
 library(xts)
 library(parallel)
+library(tidyverse)
+library(expm)
+library(matlib)
 ```
 
 ## Filtered Historical Simulation
 ```{r}
 ## read the data
-setwd("C:/Users/Jan Schlegel/Desktop/BachelorThesis/Bachelor Thesis Code/Data")
+# setwd("C:/Users/Jan Schlegel/Desktop/BachelorThesis/Bachelor Thesis Code/Data")
+setwd("C:/Users/jansc/Desktop/Bachelor Thesis/BachelorThesis/Bachelor Thesis Code/Data")
 FFCFactors.df <- read.csv("FFCFactors.csv", header = TRUE)
 stocks.plret.df <- read.csv("StockPlrets.csv", header = TRUE)
 portfolio.plret.df <- data.frame(Date = stocks.plret.df$Date, Portfolio = apply(stocks.plret.df[,-1], 1, mean))
@@ -76,5 +80,38 @@ VaRTest(0.05, portfolio.plret.ts[-c(1:1000)], VaR_fhs[,2])
 
 ```{r}
 ## Multivariate
+uniGARCH.spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)), mean.model = list(armaOrder = c(0,0), include.mean = TRUE), distribution = "norm")
+multiGARCH.spec <- multispec(replicate(4, uniGARCH.spec))
+DCC.spec <- dccspec(multiGARCH.spec, dccOrder = c(1,1), distribution =  "mvnorm")
+fitDCCGARCH <- dccfit(DCC.spec, FFCFactors.ts[,-4])
+fitDCCGARCH
+# gamma <- rcor(fitDCCGARCH, type = "R")
+# stand.factor <- array(dim=c(4,4,length(portfolio.plret.ts)))
+# V <- eigen(matr)$vectors
+# L <- eigen(matr)$values
+# # square root
+# Sqrt <- V %*% diag(sqrt(L)) %*% t(V)
+# for (i in 1:length(portfolio.plret.ts)) stand.factor[,,i] <- inv(sqrtm(gamma[,,1]))
+stdresid <- fitDCCGARCH@mfit$stdresid
+nboot <- 100000
+boot.ind <- sample(1:length(portfolio.plret.ts), nboot, replace = TRUE)
+boot.z <- matrix(numeric(4*nboot), nrow = nboot, ncol = 4)
+for (i in 1:nboot)boot.z[i,]<-stdresid[boot.ind[i],]
+# boot.z <- apply(boot.z, 1, function(x))# choose historical shock w/ given index
+summary(boot.z)
+par(mfrow=c(2,2))
+for (i in 1:4) hist(boot.z[,i], col ="lightblue", breaks = 50)
+
+DCC.forecast <- dccforecast(fitDCCGARCH, n.ahead = 1)
+cov.mat <- matrix(DCC.forecast@mforecast$H[[1]], nrow = 4)# rcov(DCC.forecast, output = "matrix")
+cov.mat
+dim(boot.z)
+sqrt.cov <- sqrtm(cov.mat)
+returns <- apply(boot.z, 1, function(x)x%*%sqrt.cov)
+dim(returns)
+returns.weighted <- apply(returns, 2, function(x)mean(x))
+(VaR_multi_fhs <- quantile(returns.weighted, c(0.01, 0.05)))
+length(returns.weighted)
+hist(returns.weighted, col = "lightblue", breaks = 30)
 ```
 

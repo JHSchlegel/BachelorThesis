@@ -10,6 +10,10 @@ library(psych)
 library(tseries)
 library(broom)
 
+# TODO: check whether adjusted prices or not
+# TODO: tsplot; especially acf plot w/ lines for absolute and "normal"returns
+# TODO: check for multivariate normality
+
 
 
 # Load Factors and Create Factors Dataframe -------------------------------
@@ -117,7 +121,6 @@ lines(density(portfolio.plret.df$Portfolio), col = "red")
 
 
 #' Summary Statistics
-#'
 #' @param dataframe Dataframe for which we want to calculate the summary statistics
 #' @param multiple.rets Boolean whether there are multiple return columns or not
 summary.statistics <- function(dataframe, multiple.rets =  TRUE){
@@ -140,6 +143,8 @@ summary.statistics(FFCFactors.df)
 summary.statistics(portfolio.plret.df, multiple.rets = FALSE)
 
 
+acf(FFCFactors.df[,2:6])
+acf(abs(FFCFactors.df[,2:6]))
 
 
 
