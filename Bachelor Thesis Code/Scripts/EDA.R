@@ -23,7 +23,7 @@ View(FFFactors)
 MomFactor <- read.csv("./Data/MomentumFactorDaily.csv", header = TRUE)
 View(MomFactor)
 
-
+# TODO: include this section or not?
 # Check whether the dates are the same for the period 2nd January 2001 to 30th December 2011
 Date.fff.all <- as.Date(FFFactors.df$X, format = "%Y%m%d") 
 Date.fff <- Date.fff.all[(Date.fff.all >= "2001-01-02") & (Date.fff.all <= "2011-12-30")]
@@ -37,6 +37,7 @@ FFFactors.df <- FFFactors %>%
   mutate(Date = X) %>% 
   select(-X) %>% 
   relocate(Date, .before = "Mkt.RF") %>% 
+  relocate(RF, .before = "Mkt.RF") %>% 
   mutate(Date = as.Date(Date, format = "%Y%m%d")) %>%
   filter((Date >= "2001-01-02") & (Date <= "2011-12-30"))
 View(FFFactors.df)
@@ -110,14 +111,16 @@ portfolio.plret.df <- data.frame(Date = stocks.plret.df$Date,
 View(portfolio.plret.df)
 ## Alternatively: portfolio.plret.df <- data.frame(Date = stocks.plret.df$Date, Portfolio = apply(stocks.plret.df[,-1], 1, mean))
 
-## Visualise portfolio plrets
+## Visualise portfolio percentage log-returns
 par(mfrow=c(1,2))
 plot(as.Date(portfolio.plret.df$Date), portfolio.plret.df$Portfolio, type = "h", 
      main = "Daily Percentage Log-Returns of Portfolio", xlab = "Date", ylab = "Percentage Log-Returns")
 abline(h = 0, col = "grey")
+# periods of higher and lower volatility clearly visible
 hist(portfolio.plret.df$Portfolio, breaks = 50, prob = TRUE, xlab = "Percentage Log-Returns", 
-     main = "Histogram of Daily Percentage Log-Returns")
-lines(density(portfolio.plret.df$Portfolio), col = "red")
+     main = "Histogram of Daily Percentage Log-Returns", col  ="grey95")
+lines(density(portfolio.plret.df$Portfolio), col = "black", lty = 1)
+# non-normal with very extreme values on either side
 
 
 # Calculate Summary Statistics --------------------------------------------
@@ -146,9 +149,46 @@ summary.statistics(FFCFactors.df)
 summary.statistics(portfolio.plret.df, multiple.rets = FALSE)
 
 
-acf(FFCFactors.df[,2:6])
-acf(abs(FFCFactors.df[,2:6]))
 
 
+# ACF Plots Factors -------------------------------------------------------
+
+par(mfrow = c(2,2),  cex = 0.8, oma = c(0.2, 0.2, 0.2, 0.2))
+names <- c("Market", "Size", "Value", "Momentum")
+for (i in 1:4){
+  factors_acf <- acf(FFCFactors.df[,i+2], plot = FALSE)
+  abs_factors_acf <- acf(abs(FFCFactors.df[,i+2]), plot = FALSE)
+  plot(factors_acf, type = "l", ci.col = "black", lty = 1, lwd = 1.3,
+       xlab = "Lag", main = "", ylab = "ACF")
+  title(names[i], line = 0.5)
+  lines(x = 0:(length(abs_factors_acf$acf)-1), abs_factors_acf$acf, lty =3,
+        lwd = 1.3)
+  legend("topright", legend = c("returns", "absolute returns"), lty = c(1,4),
+         bty = "n", lwd = c(1.3, 1.3))
+}
+
+
+acf(FFCFactors.df[,3:6], ci.col = "black") # little to no auto-& crosscorrelation between returns
+acf(abs(FFCFactors.df[,3:6]), ci.col = "black") # high auto-& crosscorrelation between absolute returns
+
+
+
+# ACF Plots Shares --------------------------------------------------------
+
+par(mfrow = c(4,3))
+for (i in 1:10){
+  stocks_acf <- acf(stocks.plret.df[,i+1], plot = FALSE)
+  abs_stocks_acf <- acf(abs(stocks.plret.df[,i+1]), plot = FALSE)
+  plot(stocks_acf, type = "l", ci.col = "black", lty = 1, lwd = 1.3,
+       xlab = "Lag", main = "", ylab = "ACF")
+  title(colnames(stocks.plret.df)[i+1], line = 0.5)
+  lines(x = 0:(length(abs_stocks_acf$acf)-1), abs_stocks_acf$acf, lty =3,
+        lwd = 1.3)
+  legend("topright", legend = c("returns", "absolute returns"), lty = c(1,4),
+         bty = "n", lwd = c(1.3, 1.3))
+}
+
+acf(stocks.plret.df[,-1], ci.col = "black") # little to no auto-& crosscorrelation between returns
+acf(abs(stocks.plret.df[,-1]), ci.col = "black") # high auto-& crosscorrelation between absolute returns
 
 
