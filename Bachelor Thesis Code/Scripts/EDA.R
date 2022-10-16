@@ -7,16 +7,16 @@ library(yfR)
 library(zoo)
 library(psych)
 library(tseries)
-library(broom)
 
-# TODO: check whether adjusted prices or not
-# TODO: tsplot; especially acf plot w/ lines for absolute and "normal"returns
+theme_set(theme_light())
+
 # TODO: check for multivariate normality
+# TODO: tsdisplay to check for stationarity
 
 
-#------------------------------------------------------------------#
-########### Load Factors and Create Factors Dataframe ##############
-#------------------------------------------------------------------#
+#---------------------------------------------------------------#
+########### Load Factors and Create Factors Dataframe ###########
+#---------------------------------------------------------------#
 
 FFFactors <- read.csv("Data/FamaFrenchFactorsDaily.csv", header = TRUE)
 View(FFFactors)
@@ -32,7 +32,7 @@ Date_mom <- Date_mom_all[(Date_mom_all >= "2001-01-02") & (Date_mom_all <= "2011
 all.equal(Date_fff, Date_mom)
 # All dates are the same for this period
 
-## Construct factor return dataframe for the period in question
+## Construct Fama-French factors return dataframe for the period in question
 FFFactors_df <- FFFactors %>% 
   mutate(Date = X) %>% 
   select(-X) %>% 
@@ -42,6 +42,7 @@ FFFactors_df <- FFFactors %>%
   filter((Date >= "2001-01-02") & (Date <= "2011-12-30"))
 View(FFFactors_df)
 
+## Construct momentum factor return dataframe for the period in question
 MomFactor_df <- MomFactor %>% 
   mutate(Date = X) %>% 
   select(-X) %>% 
@@ -58,9 +59,9 @@ write.csv(FFCFactors_df, "Data\\FFCFactors.csv", row.names = FALSE)
 
 
 
-#----------------------------------------------------------#
-########### Load Stock Percentage Log Returns ##############
-#----------------------------------------------------------#
+#-------------------------------------------------------#
+########### Load Stock Percentage Log Returns ###########
+#-------------------------------------------------------#
 
 
 stocks_plret_df <- read.csv("Data/StockPlrets.csv", header = TRUE)
@@ -73,9 +74,9 @@ all.equal(FFCFactors_df$Date, stocks_plret_df$Date)
 ## The following (commented out) section shows how this csv file has been created
 
 
-#---------------------------------------------------------------------------------------------------#
-########### Creation of Stock Percentage Log Returns Dataframe with Yahoo Finance Data ##############
-#---------------------------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------------------------#
+########### Creation of Stock Percentage Log Returns Dataframe with Yahoo Finance Data ###########
+#------------------------------------------------------------------------------------------------#
 
 
 # # import log returns from yahoo;
@@ -120,18 +121,18 @@ portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date,
 View(portfolio_plret_df)
 ## Alternatively: portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date, Portfolio = apply(stocks_plret_df[,-1], 1, mean))
 
-## Visualise portfolio percentage log-returns
+## Visualise portfolio percentage log returns
 par(mfrow=c(1,2), oma = c(0.2, 0.2, 0.2, 0.2), mar = c(5.1, 4.1, 4.1, 2.1),
     cex.main = 0.9)
 plot(as.Date(portfolio_plret_df$Date), portfolio_plret_df$Portfolio, type = "h", 
      main = "", xlab = "Date",
-     ylab = "Percentage Log-Returns")
-title("Panel A: Daily Percentage Log-Returns", line = 0.5)
+     ylab = "Percentage Log Returns")
+title("Panel A: Daily Percentage Log Returns", line = 0.5)
 abline(h = 0, col = "grey")
 # periods of higher and lower volatility clearly visible
-hist(portfolio_plret_df$Portfolio, breaks = 50,  xlab = "Percentage Log-Returns", 
+hist(portfolio_plret_df$Portfolio, breaks = 50,  xlab = "Percentage Log Returns", 
      main = "", col  ="grey95", xlim = c(-10, 12))
-title("Panel B: Histogram of Daily Percentage Log-Returns", line = 0.5)
+title("Panel B: Histogram of Daily Percentage Log Returns", line = 0.5)
 # non-normal with very extreme values on either side
 
 max_return_ind <- which.max(portfolio_plret_df$Portfolio)
@@ -139,11 +140,11 @@ portfolio_plret_df[max_return_ind, 1] #2008-10-28
 
 min_return_ind <- which.min(portfolio_plret_df$Portfolio)
 portfolio_plret_df[min_return_ind, 1] # 2008-10-15
-                   
+# both the highest and lowest return were observed in October of 2008                
 
-#-----------------------------------------------------#
-########### Calculate Summary Statistics ##############
-#-----------------------------------------------------#
+#--------------------------------------------------#
+########### Calculate Summary Statistics ###########
+#--------------------------------------------------#
 
 
 #' Summary Statistics
@@ -153,12 +154,12 @@ summary_statistics <- function(dataframe, multiple.rets =  TRUE){
   descr_stats <- psych::describe(dataframe[,-1])
   ## Conduct Jarque-Bera-Test
   ifelse(multiple.rets == TRUE,
-         JB.test <- apply(dataframe[,-1], 2, FUN = jarque.bera.test),
-         JB.test <- jarque.bera.test(dataframe[,-1]))
+         JB_test <- apply(dataframe[,-1], 2, FUN = jarque.bera.test),
+         JB_test <- jarque.bera.test(dataframe[,-1]))
   ## Extract Jarque-Bera test statistic
   ifelse(multiple.rets == TRUE, 
-         JB_test_stat <- matrix(lapply(JB.test, function(x)return(x[1]))),
-         JB_test_stat <- matrix(JB.test[1]))
+         JB_test_stat <- matrix(lapply(JB_test, function(x)return(x[1]))),
+         JB_test_stat <- matrix(JB_test[1]))
   tab <- data.frame(Mean = descr_stats[,3], Median = descr_stats[,5], SD = descr_stats[,4], MAD = descr_stats[,7],
                     Min = descr_stats[,8], Max = descr_stats[,9], Skew = descr_stats[,11], Kurt = descr_stats[,12], JB = JB_test_stat)
   tab <- data.frame(Stock = colnames(dataframe)[-1], tab)
@@ -168,6 +169,78 @@ summary_statistics(stocks_plret_df)
 summary_statistics(FFCFactors_df)
 summary_statistics(portfolio_plret_df, multiple.rets = FALSE)
 
+
+
+#---------------------------------------------------------------------------------------#
+########### Examining Relationship and Correlation Between Factors/ Shares ##############
+#---------------------------------------------------------------------------------------#
+
+## Scatterplot Matrix
+library(GGally)
+FFCFactors_df %>% 
+  select(-Date, -RF) %>% 
+  GGally::ggpairs(mapping = aes(alpha = 0.4))
+
+stocks_plret_df %>% 
+  select(-Date) %>% 
+  GGally::ggpairs(mapping = aes(alpha = 0.4))
+
+## Correlation Heatmap
+FFCFactors_df %>% 
+  select(-Date, -RF) %>%
+  cor() %>% 
+  round(digits = 3) %>% 
+  reshape2::melt() %>% 
+  ggplot(aes(Var1, Var2, fill = value))+
+  geom_tile()+
+  theme(panel.grid.major = element_blank(), panel.border = element_blank(),
+        axis.ticks = element_blank())+
+  scale_fill_gradient2(high = "blue", low = "red", mid = "white", midpoint = 0,
+                       name = "Correlation", limit = c(-1,1))+
+  geom_text(aes(Var1, Var2, label = value), color = "black")+
+  labs(x = "", y = "", title  ="Correlation Heatmap of Factors")
+# momentum and market show strongest correlation w/ -0.465, others barely correlated
+
+stocks_plret_df %>% 
+  select(-Date) %>% 
+  cor() %>% 
+  round(digits = 3) %>% 
+  reshape2::melt() %>%
+  ggplot(aes(Var1, Var2, fill = value))+
+  geom_tile()+
+  theme(panel.grid.major = element_blank(), panel.border = element_blank(),
+        axis.ticks = element_blank())+
+  scale_fill_gradient2(high = "blue", low = "red", mid = "white", midpoint = 0,
+                       name = "Correlation", limit = c(-1,1))+
+  geom_text(aes(Var1, Var2, label = value), color = "black")+
+  labs(x = "", y = "", title  ="Correlation Heatmap of Shares")
+# all positively correlated; correlations between shares higher than correlations between factors
+
+
+## Network Plot of Correlation
+# highly correlated variables are clustered together in network plots:
+library(corrr)
+FFCFactors_df %>% 
+  select(-Date, -RF) %>% 
+  correlate() %>% 
+  rearrange() %>% 
+  network_plot(min_cor = 0)
+# market and momentum show strongest linear relationship
+# SMB almost uncorrelated to other factors
+# very slight correlation between Mom & HML and Mkt.RF & HML
+
+stocks_plret_df %>% 
+  select(-Date) %>% 
+  correlate() %>% 
+  rearrange() %>% 
+  network_plot(min_cor = 0)
+# all shares positively correlated with each other
+# can identify some clusters based on correlation:
+# GE, UTC, IBM, BA and CAT tend to be highly correlated
+# CVX and XOM are clustered
+# PG and KO are clustered
+# MRK does not belong to any of the other clusters
+  
 
 
 #------------------------------------------#
@@ -194,18 +267,31 @@ for (i in 1:4){
 acf(FFCFactors_df[,3:6], ci.col = "black") # little to no auto-& crosscorrelation between returns
 acf(abs(FFCFactors_df[,3:6]), ci.col = "black") # high auto-& crosscorrelation between absolute returns
 
-#-----------------------------------------#
-########### ACF Plots Shares ##############
-#-----------------------------------------#
+
+#-------------------------------------------------------#
+########### ACF Plots Portfolio and Shares ##############
+#-------------------------------------------------------#
 
 
-par(mfrow = c(4,3))
+par(mfrow = c(4,3), cex = 0.8, oma = c(0.2, 0.2, 0.2, 0.2),
+    mar = c(1, 4.1, 4.1, 1))
+
+pf_acf <- acf(portfolio_plret_df$Portfolio, plot = FALSE)
+abs_pf_acf <- acf(abs(portfolio_plret_df$Portfolio), plot = FALSE)
+plot(pf_acf, type = "l", ci.col = "black", lty = 1, lwd = 1.3,
+     xlab = "Lag", main = "", ylab = "ACF")
+title("Panel A: Portfolio", line = 0.5)
+lines(x = 0:(length(abs_pf_acf$acf)-1), abs_pf_acf$acf, lty =3,
+      lwd = 1.3)
+legend("topright", legend = c("returns", "absolute returns"), lty = c(1,4),
+       bty = "n", lwd = c(1.3, 1.3))
+
 for (i in 1:10){
   stocks_acf <- acf(stocks_plret_df[,i+1], plot = FALSE)
   abs_stocks_acf <- acf(abs(stocks_plret_df[,i+1]), plot = FALSE)
   plot(stocks_acf, type = "l", ci.col = "black", lty = 1, lwd = 1.3,
        xlab = "Lag", main = "", ylab = "ACF")
-  title(colnames(stocks_plret_df)[i+1], line = 0.5)
+  title(paste0("Panel ", LETTERS[i+1], ": ", colnames(stocks_plret_df)[i+1]), line = 0.5)
   lines(x = 0:(length(abs_stocks_acf$acf)-1), abs_stocks_acf$acf, lty =3,
         lwd = 1.3)
   legend("topright", legend = c("returns", "absolute returns"), lty = c(1,4),
@@ -214,5 +300,10 @@ for (i in 1:10){
 
 acf(stocks_plret_df[,-1], ci.col = "black") # little to no auto-& crosscorrelation between returns
 acf(abs(stocks_plret_df[,-1]), ci.col = "black") # high auto-& crosscorrelation between absolute returns
+
+
+
+
+
 
 
