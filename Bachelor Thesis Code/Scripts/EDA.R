@@ -180,7 +180,7 @@ summary_statistics(portfolio_plret_df, multiple.rets = FALSE)
 #---------------------------------------------------------------------------------------#
 
 ## Scatterplot Matrix
-library(GGally)
+if (!require(GGally)) install.packages("GGally")
 FFCFactors_df %>% 
   select(-Date, -RF) %>% 
   GGally::ggpairs(mapping = aes(alpha = 0.4))
@@ -190,34 +190,39 @@ stocks_plret_df %>%
   GGally::ggpairs(mapping = aes(alpha = 0.4))
 
 ## Correlation Heatmap
+if (!require(pheatmap)) install.packages("pheatmap")
 FFCFactors_df %>% 
   select(-Date, -RF) %>%
   cor() %>% 
-  round(digits = 3) %>% 
-  reshape2::melt() %>% 
-  ggplot(aes(Var1, Var2, fill = value))+
-  geom_tile()+
-  theme(panel.grid.major = element_blank(), panel.border = element_blank(),
-        axis.ticks = element_blank())+
-  scale_fill_gradient2(high = "blue", low = "red", mid = "white", midpoint = 0,
-                       name = "Correlation", limit = c(-1,1))+
-  geom_text(aes(Var1, Var2, label = value), color = "black")+
-  labs(x = "", y = "", title  ="Correlation Heatmap of Factors")
+  pheatmap(display_numbers = TRUE)
+  # round(digits = 3) %>% 
+  # reshape2::melt() %>% 
+  # ggplot(aes(Var1, Var2, fill = value))+
+  # geom_tile()+
+  # theme(panel.grid.major = element_blank(), panel.border = element_blank(),
+  #       axis.ticks = element_blank())+
+  # scale_fill_gradient2(high = "blue", low = "red", mid = "white", midpoint = 0,
+  #                      name = "Correlation", limit = c(-1,1))+
+  # geom_text(aes(Var1, Var2, label = value), color = "black")+
+  # labs(x = "", y = "", title  ="Correlation Heatmap of Factors")
+
 # momentum and market show strongest correlation w/ -0.465, others barely correlated
 
 stocks_plret_df %>% 
   select(-Date) %>% 
   cor() %>% 
-  round(digits = 3) %>% 
-  reshape2::melt() %>%
-  ggplot(aes(Var1, Var2, fill = value))+
-  geom_tile()+
-  theme(panel.grid.major = element_blank(), panel.border = element_blank(),
-        axis.ticks = element_blank())+
-  scale_fill_gradient2(high = "blue", low = "red", mid = "white", midpoint = 0,
-                       name = "Correlation", limit = c(-1,1))+
-  geom_text(aes(Var1, Var2, label = value), color = "black")+
-  labs(x = "", y = "", title  ="Correlation Heatmap of Shares")
+  pheatmap(display_numbers = TRUE)
+  # round(digits = 3) %>% 
+  # reshape2::melt() %>%
+  # ggplot(aes(Var1, Var2, fill = value))+
+  # geom_tile()+
+  # theme(panel.grid.major = element_blank(), panel.border = element_blank(),
+  #       axis.ticks = element_blank())+
+  # scale_fill_gradient2(high = "blue", low = "red", mid = "white", midpoint = 0,
+  #                      name = "Correlation", limit = c(-1,1))+
+  # geom_text(aes(Var1, Var2, label = value), color = "black")+
+  # labs(x = "", y = "", title  ="Correlation Heatmap of Shares")
+  
 # all positively correlated; correlations between shares higher than correlations between factors
 
 
