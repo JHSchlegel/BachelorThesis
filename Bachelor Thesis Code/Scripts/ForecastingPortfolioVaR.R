@@ -8,7 +8,7 @@ library(rmgarch)
 library(xts)
 library(parallel)
 
-
+# TODO: use AR(1)-GARCH(1,1) for univiariate models
 
 # Import Data and Create xts Objects --------------------------------------
 

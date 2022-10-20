@@ -77,39 +77,43 @@ all.equal(FFCFactors_df$Date, stocks_plret_df$Date)
 #------------------------------------------------------------------------------------------------#
 ########### Creation of Stock Percentage Log Returns Dataframe with Yahoo Finance Data ###########
 #------------------------------------------------------------------------------------------------#
+# TODO: check whether arithm returns or not for Carhart
+stock_data_arit <- yf_get(tickers, first_date = "2000-12-29", last_date = "2011-12-31",
+                          freq_data = "daily",  type_return = "arit")
+head(stock_data_arit)
 
 
-# # import log returns from yahoo;
-# # UTC now is called RTX due to fusion in April of 2020
-# tickers <- c("KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
-# stock_data <- yf_get(tickers, first_date = "2000-12-29", last_date = "2011-12-31",
-#                      freq_data = "daily",  type_return = "log")
-# head(stock_data)
-# ## Only the first log return for each of the stocks is NA
-# ## i.e. our actual log returns begin on the 2nd of January 2001
-# sum(is.na(stock_data$ret_adjusted_prices))
-# 
-# ## Bind and assign the stock name, date and log return of adjusted prices to the stock name
-# for (ticker_nr in 1:10){
-#   assign(tickers[ticker_nr], stock_data %>% filter(ticker == tickers[ticker_nr]) %>%
-#            select(ticker, ref_date, ret_adjusted_prices) %>% na.omit())
-# }
-# ## View PG as an example
-# View(PG)
-# 
-# ## Create dataframe with the log returns of all stocks
-# stocks_lret_df <- data.frame(Date = KO$ref_date, KO = KO$ret_adjusted_prices, XOM = XOM$ret_adjusted_prices,
-#                              GE = GE$ret_adjusted_prices, IBM = IBM$ret_adjusted_prices, CVX = CVX$ret_adjusted_prices,
-#                              UTC = RTX$ret_adjusted_prices, PG = PG$ret_adjusted_prices, CAT = CAT$ret_adjusted_prices,
-#                              BA = BA$ret_adjusted_prices, MRK = MRK$ret_adjusted_prices)
-# View(stocks_lret_df)
-# 
-# ## Multiply all columns except Date by 100 to get percentage log returns
-# stocks_plret_df <- data.frame(Date = KO$ref_date, apply(stocks_lret_df[,-1], 2, function(x)100*x))
-# View(stocks_plret_df)
-# 
-# # ## Save the created dataframe as a csv file to allow for easy importing and guarantee reproducibility
-# write.csv(stocks_plret_df, "Data\\StockPlrets.csv", row.names = FALSE)
+# import log returns from yahoo;
+# UTC now is called RTX due to fusion in April of 2020
+tickers <- c("KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
+stock_data_log <- yf_get(tickers, first_date = "2000-12-29", last_date = "2011-12-31",
+                     freq_data = "daily",  type_return = "log")
+
+## Only the first log return for each of the stocks is NA
+## i.e. our actual log returns begin on the 2nd of January 2001
+sum(is.na(stock_data$ret_adjusted_prices))
+
+## Bind and assign the stock name, date and log return of adjusted prices to the stock name
+for (ticker_nr in 1:10){
+  assign(tickers[ticker_nr], stock_data %>% filter(ticker == tickers[ticker_nr]) %>%
+           select(ticker, ref_date, ret_adjusted_prices) %>% na.omit())
+}
+## View PG as an example
+View(PG)
+
+## Create dataframe with the log returns of all stocks
+stocks_lret_df <- data.frame(Date = KO$ref_date, KO = KO$ret_adjusted_prices, XOM = XOM$ret_adjusted_prices,
+                             GE = GE$ret_adjusted_prices, IBM = IBM$ret_adjusted_prices, CVX = CVX$ret_adjusted_prices,
+                             UTC = RTX$ret_adjusted_prices, PG = PG$ret_adjusted_prices, CAT = CAT$ret_adjusted_prices,
+                             BA = BA$ret_adjusted_prices, MRK = MRK$ret_adjusted_prices)
+View(stocks_lret_df)
+
+## Multiply all columns except Date by 100 to get percentage log returns
+stocks_plret_df <- data.frame(Date = KO$ref_date, apply(stocks_lret_df[,-1], 2, function(x)100*x))
+View(stocks_plret_df)
+
+# ## Save the created dataframe as a csv file to allow for easy importing and guarantee reproducibility
+write.csv(stocks_plret_df, "Data\\StockPlrets.csv", row.names = FALSE)
 
 
 # Calculate Portfolio Percentage Log Returns of Equally Weighted Portfolio ---------------
