@@ -19,7 +19,7 @@ if (!require(rugarch)) install.packages("rugarch")
 if (!require(rmgarch)) install.packages("rmgarch")
 if (!require(parallel)) install.packages("parallel")
 if (!require(copula)) install.packages("copula")
-
+theme_set(theme_light())
 
 #--------------------------------------------------------#
 ########### Import Data and Create xts Objects ###########
@@ -43,6 +43,112 @@ stocks_plret_ts <- xts(stocks_plret_df[,-1], order.by = as.Date(stocks_plret_df$
 portfolio_plret_ts <- xts(portfolio_plret_df[,-1], order.by = as.Date(portfolio_plret_df$Date))
 
 
+#---------------------------------------#
+########### Microbenchmarking ###########
+#---------------------------------------#
+
+# Have to calculate simulated portfolio returns from simulated factor returns
+# check which way it is the fastest using microbenchmarking
+
+if (!require(microbenchmark)) install.packages("microbenchmark")
+if (!require(Rcpp)) install.packages("Rcpp")
+
+cppFunction("double DotProdCpp(NumericVector x, NumericVector y){
+  double result = 0;
+  int n = x.length();
+  for (int i=0; i<n; i++){
+    result+=x[i]*y[i];
+  }
+  return result;
+}")
+
+set.seed(42)
+a <- 3 # e.g. intercept or risk free rate
+x <- rnorm(4)
+y <- rnorm(4)
+mbm_dot_small <- microbenchmark(
+  base = a+x%*%y,
+  crossprod = a+crossprod(x,y),
+  cpp_dot_prd = a+DotProdCpp(x,y),
+  times = 100
+)
+mbm_dot_small
+# Use %*% for dot product of simulated factor returns and OLS factor coefs
+
+
+x <- rnorm(100000)
+y <- rnorm(100000)
+mbm_dot_large <- microbenchmark(
+  base = a+x%*%y,
+  crossprod = a+crossprod(x,y),
+  cpp_dot_prd = a+DotProdCpp(x,y),
+  times = 100
+)
+mbm_dot_large
+# use c++ function to calculate dot product of large vectors
+
+numcores <- detectCores()-1
+
+parapply_test <- function(cl, test_rets, test_coefs){
+  sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
+  for (i in 1:10) sim_test[,i] <- parApply(cl, test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+}
+
+apply_test <- function(test_rets, test_coefs){
+  sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
+  for (i in 1:10) sim_test[,i] <- apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+}
+
+test_rets <- matrix(rnorm(4*200000), nrow = 200000, ncol = 4)
+test_errors <- matrix(rnorm(10*200000), nrow = 200000, ncol = 10)
+test_coefs <- matrix(rnorm(5*10), nrow = 10, ncol = 5)
+
+
+cl <- makePSOCKcluster(numcores)
+clusterExport(cl, list("test_rets", "test_coefs", "i"))
+mbm_apply <- microbenchmark(
+  parapply = parapply_test(cl, test_rets, test_coefs),
+  apply = apply_test(test_rets, test_coefs),
+  times = 10
+)
+stopCluster(cl)
+mbm_apply
+# apply faster than parapply in this case
+
+apply_test_inloop <- function(constant, test_rets, test_coefs, test_errors){
+  sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
+  for (i in 1:10) sim_test[,i] <- constant + apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)+test_errors[,i]
+}
+
+apply_test_outloop <- function(constant, test_rets, test_coefs, test_errors){
+  sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
+  for (i in 1:10) sim_test[,i] <- constant + apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+  sim_test+test_errors
+}
+
+mbm_loop <- microbenchmark(
+  inloop = apply_test_inloop(a, test_rets, test_coefs, test_errors),
+  outloop = apply_test_outloop(a, test_rets, test_coefs, test_errors),
+  times = 10
+)
+mbm_loop
+# out of loop faster
+
+sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
+for (i in 1:10) sim_test[,i] <- constant + apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+  sim_test+test_errors
+
+  
+
+cl <- makePSOCKcluster(numcores)
+clusterExport(cl, list("sim_test"))
+mbm_pf <- microbenchmark(
+  apply = apply(sim_test, 1, mean),
+  parallel = parApply(cl, sim_test, 1, mean)
+)
+stopCluster(cl)
+# parallel faster for mean
+
 #-----------------------------------------------------------------------------#
 ########### Coefficients and Residuals of Carhart Four-Factor Model ###########
 #-----------------------------------------------------------------------------#
@@ -63,15 +169,16 @@ colnames(coefs_df) <- c("Intercept", "Market", "Size", "Value", "Momentum")
 head(coefs_df); head(error_df)
 
 ## Plot and investigate error distribution
-error_df[,-1] %>% 
+error_df %>% 
+  select(-Date) %>% 
   gather() %>% 
   ggplot(aes(value)) +
   geom_histogram(aes(y = ..density..), bins = 80, fill = "grey69", color = "white")+
   geom_density()+
   facet_wrap(~key, scale = "free_x")
 
-apply(error_vec_resampled, 2, min)
-apply(error_vec_resampled, 2, max)
+apply(error_mat, 2, min)
+apply(error_mat, 2, max)
 # minimal values are a lot smaller in absolute value than maximal values for all shares
 # can observe that the bootstrapped error distributions have a long left tail
 
@@ -81,6 +188,13 @@ error_df[,-1] %>%
   pheatmap(display_numbers = TRUE)
 # most residuals only barely correlated
 # XOM& CVX residuals show strongest correlation, followed by RTX& BA and KO&PG
+
+if (!require(corrr)) install.packages("corrr")
+error_df %>% 
+  select(-Date) %>% 
+  correlate() %>% 
+  rearrange() %>% 
+  network_plot(min_cor = 0, colors = c("blue", "white", "red"))
 
 #-------------------------------------------------------------------------------#
 ########### Bootstrap Resample Error Distributions of OLS Regressions ###########
@@ -152,11 +266,18 @@ logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(sqrt_h%*%t(res_sim)
 hist(logret[,1], breaks = 50)
 dim(logret)
 
-sim_rets <- matrix(0L, nrow = N_sim, ncol = 10)
-for (i in 1:10) sim_rets[,i] <- apply(logret, 1, function(x)coefs_df[i,1]+crossprod(coefs_mat[i,-1],x))+
-  as.vector(error_vec_resampled[i,1])
-# crossprod slightly faster than x%*%y
-sim_plrets <- apply(sim_rets, 1, mean)
-quantile(sim_plrets, c(0.01, 0.05))
-hist(sim_plrets, breaks = 50)
 
+#### TODO: insert time for RF
+
+
+
+sim_rets <- matrix(0L, nrow = N_sim, ncol = 10)
+for (i in 1:10) sim_rets[,i] <- apply(logret, 1, function(x)coefs_mat[i,1]+coefs_mat[i,-1]%*%x)
+sim_rets <- FFCFactors_df$RF[time]+sim_rets+error_vec_resampled
+cl <- makePSOCKcluster(numcores)
+clusterExport(cl, "logret")
+sim_plrets <- parApply(cl, sim_rets, 1, mean)
+stopCluster(cl)
+# crossprod slightly faster than x%*%y
+
+quantile(sim_plrets, c(0.01, 0.05))

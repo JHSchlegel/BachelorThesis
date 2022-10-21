@@ -228,12 +228,12 @@ stocks_plret_df %>%
 
 ## Network Plot of Correlation
 # highly correlated variables are clustered together in network plots:
-library(corrr)
+if (!require(corrr)) install.packages("corrr")
 FFCFactors_df %>% 
   select(-Date, -RF) %>% 
   correlate() %>% 
   rearrange() %>% 
-  network_plot(min_cor = 0)
+  network_plot(min_cor = 0, colors = c("blue", "white", "red"))
 # market and momentum show strongest linear relationship
 # SMB almost uncorrelated to other factors
 # very slight correlation between Mom & HML and Mkt.RF & HML
@@ -242,7 +242,7 @@ stocks_plret_df %>%
   select(-Date) %>% 
   correlate() %>% 
   rearrange() %>% 
-  network_plot(min_cor = 0)
+  network_plot(min_cor = 0, colors = c("blue", "white", "red"))
 # all shares positively correlated with each other
 # can identify some clusters based on correlation:
 # GE, UTC, IBM, BA and CAT tend to be highly correlated
