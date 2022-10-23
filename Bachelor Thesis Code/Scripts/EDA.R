@@ -245,11 +245,12 @@ stocks_plret_df %>%
   network_plot(min_cor = 0, colors = c("blue", "white", "red"))
 # all shares positively correlated with each other
 # can identify some clusters based on correlation:
-# GE, UTC, IBM, BA and CAT tend to be highly correlated
-# CVX and XOM are clustered
-# PG and KO are clustered
-# MRK does not belong to any of the other clusters
-  
+# GE, UTC, IBM, BA and CAT tend to be highly correlated; all technology
+# CVX and XOM are clustered; both energy
+# PG and KO are clustered; both consumption goods
+# MRK does not belong to any of the other clusters; MRK is pharma
+# returns show strong linear dependencies within a certain sector and slightly lower
+# correlation between sectors
 
 
 #------------------------------------------#

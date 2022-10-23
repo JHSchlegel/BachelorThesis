@@ -14,6 +14,8 @@
 
 # TODO: DCC which distribution? how to backtransform? 
 
+# TODO: set.seed(i) for resampling
+
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(rugarch)) install.packages("rugarch")
 if (!require(rmgarch)) install.packages("rmgarch")
@@ -73,6 +75,7 @@ mbm_dot_small <- microbenchmark(
   times = 100
 )
 mbm_dot_small
+plot(mbm_dot_small)
 # Use %*% for dot product of simulated factor returns and OLS factor coefs
 
 
@@ -85,69 +88,113 @@ mbm_dot_large <- microbenchmark(
   times = 100
 )
 mbm_dot_large
-# use c++ function to calculate dot product of large vectors
+plot(mbm_dot_large)
+# use C++ function to calculate dot product of large vectors
 
 numcores <- detectCores()-1
 
 parapply_test <- function(cl, test_rets, test_coefs){
-  sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
+  cl <- makePSOCKcluster(numcores)
+  clusterExport(cl, list("test_rets", "test_coefs"))
+  sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
   for (i in 1:10) sim_test[,i] <- parApply(cl, test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+  stopCluster(cl)
 }
 
-apply_test <- function(test_rets, test_coefs){
-  sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+
+apply_test <- function(constant, test_rets, test_coefs){
+  sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
+  for (i in 1:10) sim_test[,i] <- constant + apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+  sim_test
 }
 
-test_rets <- matrix(rnorm(4*200000), nrow = 200000, ncol = 4)
-test_errors <- matrix(rnorm(10*200000), nrow = 200000, ncol = 10)
+columnwise_sum <- function(constant, test_rets, test_coefs){
+  sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
+  for (i in 1:10) sim_test[,i] <- constant +test_coefs[i,1]+test_coefs[i,2]*test_rets[,1]+
+      test_coefs[i,3]*test_rets[,2]+test_coefs[i,4]*test_rets[,3]+test_coefs[i,5]*test_rets[,4]
+  sim_test
+}
+
+
+
+
+a <- 3
+test_rets <- matrix(rnorm(4*2e5), nrow = 2e5, ncol = 4)
+test_errors <- matrix(rnorm(10*2e5), nrow = 2e5, ncol = 10)
 test_coefs <- matrix(rnorm(5*10), nrow = 10, ncol = 5)
 
 
-cl <- makePSOCKcluster(numcores)
-clusterExport(cl, list("test_rets", "test_coefs", "i"))
+
 mbm_apply <- microbenchmark(
   parapply = parapply_test(cl, test_rets, test_coefs),
   apply = apply_test(test_rets, test_coefs),
-  times = 10
+  columnwise = columnwise_sum(test_rets, test_coefs),
+  times = 20
 )
-stopCluster(cl)
 mbm_apply
-# apply faster than parapply in this case
+plot(mbm_apply)
+# apply faster than parapply in this case, probably due to communication time between threads when parallelizingmbm
+# columnwise summing almost a hundred times faster
 
-apply_test_inloop <- function(constant, test_rets, test_coefs, test_errors){
-  sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- constant + apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)+test_errors[,i]
+
+in_loop <- function(constant, test_rets, test_coefs, test_errors){
+  sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
+  for (i in 1:10) sim_test[,i] <- constant+ test_coefs[i,1]+test_coefs[i,2]*test_rets[,1]+
+      test_coefs[i,3]*test_rets[,2]+test_coefs[i,4]*test_rets[,3]+test_coefs[i,5]*test_rets[,4]+test_errors[,i]
+  sim_test
 }
-
-apply_test_outloop <- function(constant, test_rets, test_coefs, test_errors){
-  sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- constant + apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+out_loop <- function(constant, test_rets, test_coefs, test_errors){
+  sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
+  for (i in 1:10) sim_test[,i] <- constant+ test_coefs[i,1]+test_coefs[i,2]*test_rets[,1]+
+      test_coefs[i,3]*test_rets[,2]+test_coefs[i,4]*test_rets[,3]+test_coefs[i,5]*test_rets[,4]
   sim_test+test_errors
 }
+
+cppFunction("NumericMatrix columnwise_sum_cpp(NumericVector constant, NumericMatrix rets, NumericMatrix coefs, NumericMatrix sim_errors, int N_Sim){
+  NumericMatrix sim_ret(N_Sim, 10);
+  int n = 10;
+  NumericVector unit(N_Sim, 1.0);
+  for (int i=0; i<n; i++){
+    sim_ret(_,i) = constant + coefs(i,0)*unit+ coefs(i,1)*rets(_,0)+coefs(i,2)*rets(_,1)+coefs(i,3)*rets(_,2)+coefs(i,4)*rets(_,3)+sim_errors(_,i);
+  }
+  return sim_ret;
+}")
+
+x <- columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, test_errors, 2e5)
+y <- in_loop(a, test_rets, test_coefs, test_errors)
+z <- out_loop(a, test_rets, test_coefs, test_errors)
+all.equal(x,y)
+all.equal(x, z)
+# all functions yield the same result
 
 mbm_loop <- microbenchmark(
-  inloop = apply_test_inloop(a, test_rets, test_coefs, test_errors),
-  outloop = apply_test_outloop(a, test_rets, test_coefs, test_errors),
-  times = 10
+  inloop = in_loop(a, test_rets, test_coefs, test_errors),
+  outloop = out_loop(a, test_rets, test_coefs, test_errors),
+  cpp = columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, test_errors, 2e5),
+  times = 50
 )
 mbm_loop
-# out of loop faster
+plot(mbm_loop)
+# outside of loop is faster than inside the loop
+# c++ 7x faster than columnwise implementation w/ summation of error matrix outside the loop
 
-sim_test <- matrix(0L, nrow = N_sim, ncol = 10)
-for (i in 1:10) sim_test[,i] <- constant + apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
-  sim_test+test_errors
-
-  
+sim_test <- columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, test_errors, 2e5)
 
 cl <- makePSOCKcluster(numcores)
 clusterExport(cl, list("sim_test"))
 mbm_pf <- microbenchmark(
   apply = apply(sim_test, 1, mean),
-  parallel = parApply(cl, sim_test, 1, mean)
+  parallel = parApply(cl, sim_test, 1, mean),
+  rowmeans = rowMeans(sim_test),
+  times = 50
 )
 stopCluster(cl)
-# parallel faster for mean
+mbm_pf
+plot(mbm_pf)
+# rowMeans the fastest; when testing it was even faster than a quick C++ implementation I did
+
+# Hence, for calculating the returns of the stocks, the C++ function columnwise_sum_cpp will be used
+# To get the portfolio returns from the stock returns, rowMeans will be used
 
 #-----------------------------------------------------------------------------#
 ########### Coefficients and Residuals of Carhart Four-Factor Model ###########
@@ -163,8 +210,8 @@ for (i in 1:10){
   error_mat[,i] <- resid(fit)
 }
 coefs_df <- data.frame(coefs_mat); error_df <- data.frame(Date = joined_df$Date, error_mat)
-rownames(coefs_df) <- c("KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
-colnames(error_df) <- c("Date", "KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
+rownames(coefs_df) <- c("KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK")
+colnames(error_df) <- c("Date", "KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK")
 colnames(coefs_df) <- c("Intercept", "Market", "Size", "Value", "Momentum")
 head(coefs_df); head(error_df)
 
@@ -176,6 +223,7 @@ error_df %>%
   geom_histogram(aes(y = ..density..), bins = 80, fill = "grey69", color = "white")+
   geom_density()+
   facet_wrap(~key, scale = "free_x")
+# very long left tail
 
 apply(error_mat, 2, min)
 apply(error_mat, 2, max)
@@ -195,6 +243,43 @@ error_df %>%
   correlate() %>% 
   rearrange() %>% 
   network_plot(min_cor = 0, colors = c("blue", "white", "red"))
+# 3 or 4 clusters
+# CVX and XOM together; both oil companies
+# Boeing and UTC together; both aircraft/technology
+# KO and PG; both consumption goods
+# others are less clear
+# can clearly see that error terms show dependencies based on the sector
+
+## Bootstrap OLS Residuals Distribution
+set.seed(42)
+N_boot <- 200000
+bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
+head(error_df[bootind,])
+error_vec_resampled <- error_df[bootind,-1] # now without date
+head(error_vec_resampled)
+
+## Plot and investigate bootstrapped error distribution
+error_vec_resampled %>%
+  gather() %>% 
+  ggplot(aes(value)) +
+  geom_histogram(aes(y = ..density..), bins = 80, fill = "grey69", color = "white")+
+  geom_density()+
+  facet_wrap(~key, scale = "free_x")
+# distribution very similar to original just slightly less smooth 
+
+error_vec_resampled %>% 
+  cor() %>% 
+  pheatmap(display_numbers = TRUE)
+# correlations almost the same as in original OLS residuals
+
+
+error_df %>% 
+  correlate() %>% 
+  rearrange() %>% 
+  network_plot(min_cor = 0, colors = c("blue", "white", "red"))
+# can identify similar clusters as in original OLS residuals
+
+# Hence bootstrapping accurately preserves crosscorrelation between residuals
 
 #-------------------------------------------------------------------------------#
 ########### Bootstrap Resample Error Distributions of OLS Regressions ###########
@@ -261,11 +346,15 @@ library(expm)
 logret <- matrix(0L, nrow = N_sim, ncol=4)
 sqrt_h <- sqrtm(dcc_fcst_cov)
 sqrt_h
+chol_h <- chol(dcc_fcst_cov)
 logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(sqrt_h%*%t(res_sim))
+logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
 
 hist(logret[,1], breaks = 50)
 dim(logret)
 
+# TODO: cholesky vs sqrt.m
+# cholesky smaller VaR than sqrt.m
 
 #### TODO: insert time for RF
 
