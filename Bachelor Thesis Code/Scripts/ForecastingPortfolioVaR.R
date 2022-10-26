@@ -3,10 +3,47 @@
 #=================================#
 
 
-library(rugarch)
-library(rmgarch)
+if (!require(rugarch)) install.packages("rugarch")
+ir (!require(rmgarch)) install.packages("rmgarch")
 library(xts)
 library(parallel)
+
+#--------------------------------------------------#
+########### VaR Exceedance Plot Function ###########
+#--------------------------------------------------#
+
+# load lubridate for year() function to extract year from Date
+if (!require(lubridate)) install.packages("lubridate") 
+#' @param dataframe dataframe with VaR
+#' @param VaR_in_col_nr integer indicating in which column of dataframe the VaR is
+#' @param pf_plrets dataframe of portfolio percentage returns
+VaR_exceed_plot <- function(dataframe, VaR_in_col_nr, pf_plrets){
+  VaR_df <- data.frame(Date = as.Date(dataframe[,1]), VaR = dataframe[,VaR_in_col_nr], 
+                       Exceedance = as.factor(pf_plrets[-c(1:1000),2]<dataframe[,VaR_in_col_nr]))
+  exceedances_per_year  <- VaR_df %>% 
+    mutate(year = year(Date)) %>% 
+    select(Exceedance, year) %>% 
+    count(year, Exceedance) %>% 
+    mutate(n = ifelse(Exceedance==TRUE, n, 0)) %>% 
+    select(-Exceedance) %>% 
+    group_by(year) %>% 
+    summarise(n = sum(n))
+  
+  ggplot(VaR_df, aes(x = Date, y = VaR))+
+    geom_point(aes(x = Date, y = pf_plrets[-c(1:1000), 2], color = Exceedance, shape = Exceedance), size =1.5, alpha = 2)+
+    scale_shape_manual(values = c(20, 4), name="", labels = c("Lower than VaR", "Greater than VaR"))+
+    scale_color_manual(values = c("gray", "red"), name = "", labels = c("Lower than VaR", "Greater than VaR"))+
+    geom_line(alpha = 0.7)+
+    labs(y = "Daily Portfolio Returns", x = "Date")+
+    theme_light()+
+    theme(legend.position = c(.15, .8), legend.background = element_rect(color = NA), legend.key = element_rect(color = "transparent"))+
+    annotate("text", x = as.Date("2005-01-15"), y = -9, size = 3, hjust = 0,
+             label = paste("Number of Exceedances per Year:\n2004:", exceedances_per_year$n[1],
+                           "\n2005:", exceedances_per_year$n[2], "\n2006:", exceedances_per_year$n[3],
+                           "\n2007:", exceedances_per_year$n[4], "\n2008:", exceedances_per_year$n[5],
+                           "\n2009:", exceedances_per_year$n[6], "\n2010:", exceedances_per_year$n[7],
+                           "\n2011:", exceedances_per_year$n[8]))
+}
 
 # TODO: use AR(1)-GARCH(1,1) for univiariate models
 
