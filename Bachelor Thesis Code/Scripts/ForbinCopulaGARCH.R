@@ -325,7 +325,7 @@ uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd
 mspec <- multispec(replicate(4, uspec))
 dcc_spec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
 
-
+library(expm)
 
 n_window <- length(FFCFactors_df[,1])-1000
 
@@ -360,7 +360,7 @@ for (i in 1:n_window){
   # for (i in 1:4) plot(res_sim[1:100,i], type = "l")
   # for qt: df = length(resx)-1
   
-  library(expm)
+  
   # use Chol if we want X'*X=A or X*X'=A; sqrtm if we want X*X = A
   # returns are X_t = mu_t+sigma_t*epsilon_t
   logret <- matrix(0L, nrow = N_sim, ncol=4)
@@ -390,4 +390,14 @@ for (i in 1:n_window){
   VaR_cop_norm[i,] <- quantile(sim_plrets, c(0.01, 0.05))
   message("completed: ", i, " of ", n_window)
 }
+VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
 write.csv(VaR_cop_norm, "Data\\VaR\\Multi_cop_norm_VaR.csv", row.names = FALSE)
+
+VaRplot(0.05, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,2])
+VaRTest(0.05, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,2])
+
+VaRplot(0.01, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,1])
+VaRTest(0.01, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,1])
+
+length(VaR_cop_norm)
+length(portfolio_plret_ts[-c(1:1000)])

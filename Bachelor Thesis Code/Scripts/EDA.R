@@ -179,16 +179,22 @@ summary_statistics(portfolio_plret_df, multiple.rets = FALSE)
 #---------------------------------------------------------------------------------------#
 ########### Examining Relationship and Correlation Between Factors/ Shares ##############
 #---------------------------------------------------------------------------------------#
-
 ## Scatterplot Matrix
 if (!require(GGally)) install.packages("GGally")
+
+# function to add smoother to scatterplot matrix:
+add_smooth <- function(dataframe, mapping, method = "loess", ...){
+  ggplot(data = dataframe, mapping = mapping)+
+  geom_point(alpha = 0.4)+
+  geom_smooth(method = method, ...)
+}
 FFCFactors_df %>% 
   select(-Date, -RF) %>% 
-  GGally::ggpairs(mapping = aes(alpha = 0.4))
+  GGally::ggpairs(lower = list(continuous = add_smooth))
 
 stocks_plret_df %>% 
   select(-Date) %>% 
-  GGally::ggpairs(mapping = aes(alpha = 0.4))
+  GGally::ggpairs(lower = list(continuous = add_smooth))
 
 ## Correlation Heatmap
 if (!require(pheatmap)) install.packages("pheatmap")
