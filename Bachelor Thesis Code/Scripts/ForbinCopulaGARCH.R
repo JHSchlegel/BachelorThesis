@@ -401,3 +401,70 @@ VaRTest(0.01, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,1])
 
 length(VaR_cop_norm)
 length(portfolio_plret_ts[-c(1:1000)])
+
+
+
+VaR_cop_t <- matrix(0L, nrow = n_window, ncol = 2)
+dcc_spec_t <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvt")
+
+for (i in 1:n_window){
+  cl <- makePSOCKcluster(numcores)
+  garch_dcc_fit <- dccfit(dcc_spec_t, data = Factors_ts[i:(1000+i-1),], cluster = cl)
+  garch_dcc_fcst <- dccforecast(garch_dcc_fit, cluster = cl)
+  stopCluster(cl)
+  
+  dcc_fcst_cov <- matrix(garch_dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(garch_dcc_fcst)  
+  dcc_fcst_mu <- matrix(garch_dcc_fcst@mforecast$mu, nrow = 1)
+  garch_dcc_res <- garch_dcc_fit@mfit$stdresid
+  res1 <- garch_dcc_res[,1]
+  res2 <- garch_dcc_res[,2]
+  res3 <- garch_dcc_res[,3]
+  res4 <- garch_dcc_res[,4]
+  pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
+  # par(mfrow = c(2,2))
+  # for (i in 1:4)plot(garch_dcc_res[,i], type = "l")
+  cop_t <- fitCopula(tCopula(dim = 4, df.fixed = TRUE), data = pobs_res)
+  
+  # simulation:
+  cop_sim <- rCopula(N_sim, cop_t@copula)
+  cop_sim_df <- data.frame(cop_sim)
+  
+  res_sim <- cbind(qt(cop_sim[,1], df = 4), qt(cop_sim[,2], df = 4), qt(cop_sim[,3], df = 4), qt(cop_sim[,4], df = 4))
+  res_sim_df <- as.matrix(res_sim)
+  #head(res_sim)
+  # par(mfrow = c(2,2))
+  # for (i in 1:4) plot(res_sim[1:100,i], type = "l")
+  # for qt: df = length(resx)-1
+  
+  
+  # use Chol if we want X'*X=A or X*X'=A; sqrtm if we want X*X = A
+  # returns are X_t = mu_t+sigma_t*epsilon_t
+  logret <- matrix(0L, nrow = N_sim, ncol=4)
+  sqrt_h <- sqrtm(dcc_fcst_cov)
+  #sqrt_h
+  chol_h <- chol(dcc_fcst_cov)
+  #logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(sqrt_h%*%t(res_sim))
+  logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
+  
+  # hist(logret[,1], breaks = 50)
+  # dim(logret)
+  
+  # TODO: cholesky vs sqrt.m
+  # cholesky smaller VaR than sqrt.m
+  
+  #### TODO: insert time for RF
+  
+  set.seed(i)
+  bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
+  error_vec_resampled <- error_mat[bootind,] 
+  
+  sim_rets <- columnwise_sum_cpp(rep(FFCFactors_mat[1000+i-1,1], 2e5), 
+                                 logret, coefs_mat, error_vec_resampled, 2e5)
+  # calculate portfolio log returns for equally weighted portfolio
+  sim_plrets <- rowMeans(sim_rets)
+  
+  VaR_cop_t[i,] <- quantile(sim_plrets, c(0.01, 0.05))
+  message("completed: ", i, " of ", n_window)
+}
+VaR_cop_t_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_t[,1], alpha_0.05 = VaR_cop_t[,2])
+write.csv(VaR_cop_norm, "Data\\VaR\\Multi_cop_t_VaR.csv", row.names = FALSE)

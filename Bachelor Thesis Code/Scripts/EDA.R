@@ -78,42 +78,42 @@ all.equal(FFCFactors_df$Date, stocks_plret_df$Date)
 ########### Creation of Stock Percentage Log Returns Dataframe with Yahoo Finance Data ###########
 #------------------------------------------------------------------------------------------------#
 
-# For numerical reasons of stability, the GARCH Models will be fitted using percentage log returns
-# import log returns from yahoo;
-# UTC now is called RTX due to fusion in April of 2020
-tickers <- c("KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
-stock_data_log <- yf_get(tickers, first_date = "2000-12-29", last_date = "2011-12-31",
-                     freq_data = "daily",  type_return = "log")
-head(stock_data_log)
-
-## Only the first log return for each of the stocks is NA
-## i.e. our actual log returns begin on the 2nd of January 2001
-sum(is.na(stock_data_log$ret_adjusted_prices))
-
-## Bind and assign the stock name, date and log return of adjusted prices to the stock name
-for (ticker_nr in 1:10){
-  assign(tickers[ticker_nr], stock_data_log %>% filter(ticker == tickers[ticker_nr]) %>%
-           select(ticker, ref_date, ret_adjusted_prices) %>% na.omit())
-}
-## View PG as an example
-View(PG)
-
-
-## Create dataframe with the log returns of all stocks
-stocks_lret_df <- data.frame(Date = KO$ref_date, KO = KO$ret_adjusted_prices, XOM = XOM$ret_adjusted_prices,
-                             GE = GE$ret_adjusted_prices, IBM = IBM$ret_adjusted_prices, CVX = CVX$ret_adjusted_prices,
-                             UTC = RTX$ret_adjusted_prices, PG = PG$ret_adjusted_prices, CAT = CAT$ret_adjusted_prices,
-                             BA = BA$ret_adjusted_prices, MRK = MRK$ret_adjusted_prices)
-View(stocks_lret_df)
-
-
-
-## Multiply all columns except Date by 100 to get percentage log returns
-stocks_plret_df <- data.frame(Date = KO$ref_date, 100*stocks_lret_df[,-1])
-View(stocks_plret_df)
-
-# ## Save the created dataframe as a csv file to allow for easy importing and guarantee reproducibility
-write.csv(stocks_plret_df, "Data\\StockPlrets.csv", row.names = FALSE)
+# # For numerical reasons of stability, the GARCH Models will be fitted using percentage log returns
+# # import log returns from yahoo;
+# # UTC now is called RTX due to fusion in April of 2020
+# tickers <- c("KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
+# stock_data_log <- yf_get(tickers, first_date = "2000-12-29", last_date = "2011-12-31",
+#                      freq_data = "daily",  type_return = "log")
+# head(stock_data_log)
+# 
+# ## Only the first log return for each of the stocks is NA
+# ## i.e. our actual log returns begin on the 2nd of January 2001
+# sum(is.na(stock_data_log$ret_adjusted_prices))
+# 
+# ## Bind and assign the stock name, date and log return of adjusted prices to the stock name
+# for (ticker_nr in 1:10){
+#   assign(tickers[ticker_nr], stock_data_log %>% filter(ticker == tickers[ticker_nr]) %>%
+#            select(ticker, ref_date, ret_adjusted_prices) %>% na.omit())
+# }
+# ## View PG as an example
+# View(PG)
+# 
+# 
+# ## Create dataframe with the log returns of all stocks
+# stocks_lret_df <- data.frame(Date = KO$ref_date, KO = KO$ret_adjusted_prices, XOM = XOM$ret_adjusted_prices,
+#                              GE = GE$ret_adjusted_prices, IBM = IBM$ret_adjusted_prices, CVX = CVX$ret_adjusted_prices,
+#                              UTC = RTX$ret_adjusted_prices, PG = PG$ret_adjusted_prices, CAT = CAT$ret_adjusted_prices,
+#                              BA = BA$ret_adjusted_prices, MRK = MRK$ret_adjusted_prices)
+# View(stocks_lret_df)
+# 
+# 
+# 
+# ## Multiply all columns except Date by 100 to get percentage log returns
+# stocks_plret_df <- data.frame(Date = KO$ref_date, 100*stocks_lret_df[,-1])
+# View(stocks_plret_df)
+# 
+# # ## Save the created dataframe as a csv file to allow for easy importing and guarantee reproducibility
+# write.csv(stocks_plret_df, "Data\\StockPlrets.csv", row.names = FALSE)
 
 #-----------------------------------------------------------------------------------------------#
 ########### Calculate Portfolio Percentage Log Returns of Equally Weighted Portfolio ###########
@@ -163,15 +163,15 @@ summary_statistics <- function(dataframe, multiple.rets =  TRUE){
          JB_test <- jarque.bera.test(dataframe[,-1]))
   ## Extract Jarque-Bera test statistic
   ifelse(multiple.rets == TRUE, 
-         JB_test_stat <- matrix(lapply(JB_test, function(x)return(x[1]))),
-         JB_test_stat <- matrix(JB_test[1]))
+         JB_test_stat <- matrix(unlist(lapply(JB_test, function(x)return(x[1])))),
+         JB_test_stat <- matrix(unlist(JB_test[1])))
   tab <- data.frame(Mean = descr_stats[,3], Median = descr_stats[,5], SD = descr_stats[,4], MAD = descr_stats[,7],
                     Min = descr_stats[,8], Max = descr_stats[,9], Skew = descr_stats[,11], Kurt = descr_stats[,12], JB = JB_test_stat)
-  tab <- data.frame(Stock = colnames(dataframe)[-1], tab)
+  tab <- data.frame(Stock = colnames(dataframe)[-1], tab %>% round(3))
   return(tab)
 }
 summary_statistics(stocks_plret_df)
-summary_statistics(FFCFactors_df)
+summary_statistics(FFCFactors_df[,-2])
 summary_statistics(portfolio_plret_df, multiple.rets = FALSE)
 
 
