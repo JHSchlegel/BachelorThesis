@@ -123,4 +123,8 @@ Omega_inv_95 <- 1/T * matrix(colSums(matrix(apply(Z_95, 1, function(x)x%*%t(x)),
 GW_ij_99 <- T * t(Z_bar_99) %*% Omega_inv_99 %*% Z_bar_99
 GW_ij_95 <- T * t(Z_bar_95) %*% Omega_inv_95 %*% Z_bar_95
 
+GW_ij_99
+GW_ij_95
 
+pchisq(GW_ij_99, 2)
+pchisq(GW_ij_95, 2)
