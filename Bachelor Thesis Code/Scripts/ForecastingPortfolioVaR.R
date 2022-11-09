@@ -1,6 +1,6 @@
-#=================================#
-#### Forecasting Portfolio VaR ####
-#=================================#
+#=============================================================================#
+########################## Forecasting Portfolio VaR ##########################
+#=============================================================================#
 
 if (!require(parallel)) install.packages("parallel")
 if (!require(rugarch)) install.packages("rugarch")
@@ -32,11 +32,17 @@ numcores <- detectCores()-1
 
 
 #--------------------------------------------------#
-########### VaR Exceedance Plot Function ###########
+########### VaR Exceedence Plot Function ###########
 #--------------------------------------------------#
 
 # load lubridate for year() function to extract year from Date
-if (!require(lubridate)) install.packages("lubridate") 
+if (!require(lubridate)) install.packages("lubridate")
+
+#' VaR Exceedence Plot
+#' 
+#' Plots returns and line of VaR and marks every point where the return is below the 
+#' VaR line as an exceedence and displays how many exceedences there are in each year
+#' 
 #' @param dataframe dataframe with VaR
 #' @param VaR_in_col_nr integer indicating in which column of dataframe the VaR is
 #' @param pf_plrets dataframe of portfolio percentage returns
@@ -82,8 +88,8 @@ uni_normal_varModel <- list(model = "sGARCH", garchOrder = c(1,1))
 uni_normal_spec <- ugarchspec(variance.model = uni_normal_varModel, mean.model = uni_normal_meanModel,
                               distribution.model = "norm")
 cl <- makePSOCKcluster(numcores)
-uni_normal_GARCH_roll <- ugarchroll(uni_normal_spec, portfolio_plret_ts, n.start = 1000, refit.every = 1,
-                       refit.window = "moving", solver = "hybrid",
+uni_normal_GARCH_roll <- ugarchroll(uni_normal_spec, portfolio_plret_ts, refit.every = 1,
+                       refit.window = "moving", n.start = 1000, solver = "hybrid",
                        calculate_var = TRUE, VaR.alpha = c(0.01, 0.05),
                        cluster = cl, keep.coef = FALSE)
 
@@ -91,7 +97,7 @@ stopCluster(cl)
 
 uni_normal_GARCH_VaR <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_1perc = uni_normal_GARCH_roll@forecast$VaR[,1],
                                    alpha_5perc = uni_normal_GARCH_roll@forecast$VaR[,2])
-head(uni_normal_GARCH_VaR)
+
 write.csv(uni_normal_GARCH_VaR, "Data\\VaR\\Uni_Normal_GARCH_VaR.csv", row.names = FALSE)
 
 VaR_exceed_plot(uni_normal_GARCH_VaR, 3, portfolio_plret_df, alpha = 95, "Uni_Normal_GARCH")
@@ -101,8 +107,8 @@ VaR_exceed_plot(uni_normal_GARCH_VaR, 2, portfolio_plret_df, alpha = 99, "Uni_No
 
 
 lambda <- 0.94
-uni_ewma_meanModel <- list(armaOrder=c(0,0), include_mean=TRUE)
-uni_ewma_varModel <- list(model="iGARCH", garchOrder=c(1,1))
+ewma_meanModel <- list(armaOrder=c(0,0), include_mean=TRUE)
+ewma_varModel <- list(model="iGARCH", garchOrder=c(1,1))
 uni_ewma_spec <- ugarchspec(variance.model= ewma_varModel, mean.model= ewma_meanModel,  
                         distribution.model="norm", fixed.pars=list(omega=0, alpha = 1-lambda))
 cl <- makePSOCKcluster(numcores)

@@ -1,3 +1,7 @@
+#==========================================================================#
+############################### Copula GARCH ###############################
+#==========================================================================#
+
 #TODO: 1) OLS regression
 
 #TODO: 2) bootstrap OLS residuals
@@ -225,10 +229,17 @@ coefs_mat <- matrix(0L, nrow = 10, ncol = 5) # empty matrix to store coefficient
 error_mat <- matrix(0L, nrow = n_dates, ncol = 10) # empty matrix to store residuals
 for (i in 1:10){
   # columns 2-11 are the shares
-  fit <- lm((joined_df[,i+1]-RF) ~ Mkt.RF + SMB+ HML + Mom,data = joined_df) 
+  fit <- lm((joined_df[,i+1]-RF) ~ Mkt.RF + SMB+ HML + Mom,data = joined_df)
+  par(mfrow=c(2,2))
+  plot(fit)
   coefs_mat[i,] <- coef(fit)
   error_mat[,i] <- resid(fit)
 }
+# residuals vs fitted looks fine
+# qq-plots show leptokurtic behavior
+# scale location plots show heteroscedastic behaviour
+# some points with high leverage but still w/in 0.5 boundary for Cook's distance
+
 coefs_df <- data.frame(coefs_mat); error_df <- data.frame(Date = joined_df$Date, error_mat)
 rownames(coefs_df) <- c("KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK")
 colnames(error_df) <- c("Date", "KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK")
