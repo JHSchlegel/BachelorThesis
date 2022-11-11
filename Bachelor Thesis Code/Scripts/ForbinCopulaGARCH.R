@@ -404,7 +404,7 @@ for (i in 1:n_window){
   message("completed: ", i, " of ", n_window)
 }
 VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
-write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR.csv", row.names = FALSE)
+write.csv(VaR_cop_norm, "Data\\VaR\\Multi_cop_norm_VaR.csv", row.names = FALSE)
 
 VaRplot(0.05, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,2])
 VaRTest(0.05, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,2])
@@ -480,4 +480,5 @@ for (i in 1:n_window){
   message("completed: ", i, " of ", n_window)
 }
 VaR_cop_t_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_t[,1], alpha_0.05 = VaR_cop_t[,2])
-write.csv(VaR_cop_norm, "Data\\VaR\\Multi_cop_t_VaR.csv", row.names = FALSE)
+write.csv(VaR_cop_t_df, "Data\\VaR\\Multi_cop_t_VaR.csv", row.names = FALSE)
+#"1392"
