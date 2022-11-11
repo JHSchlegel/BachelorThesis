@@ -48,9 +48,11 @@ portfolio_plret_mat <- as.matrix(portfolio_plret_df[,-1])
 
 ## Create dataframe with all stocks and market factors
 joined_df <- stocks_plret_df %>% 
-  full_join(FFCFactors_df)
+  full_join(FFCFactors_df, by = "Date")
 
 head(joined_df)
+dim(joined_df)
+joined_df$Date
 
 ## Convert to time series
 if (!require(xts)) install.packages("xts") # allows handling of multivariate time series
