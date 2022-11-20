@@ -3,6 +3,9 @@
 #=========================================================================#
 
 # TODO: ranking of mean loss
+# TODO: CPA test matrix
+# TODO: VaR list implementation for LR tests
+# TODO: check p_value corrections
 
 #------------------------------------#
 ########### Importing Data ###########
@@ -22,6 +25,175 @@ Uni_t_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_t_GJR_GARCH.csv",
                                 header = TRUE)
 
 
+#----------------------------------------------------------------#
+########### Calculate Exceedances and Nominal Coverage ###########
+#----------------------------------------------------------------#
+
+#' Title
+#'
+#' @param VaR 
+#' @param plrets 
+#'
+#' @return
+nominal_coverage <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
+  indicator <- ifelse(plrets-VaR<0, 1, 0)
+  coverage <- 1-sum(indicator)/length(VaR)
+  return(nominal_coverage = coverage)
+}
+
+nominal_coverage(Uni_EWMA_VaR[,2])
+
+if (!require(tidyverse)) install.packages("tidyverse")
+if (!require(lubridate)) install.packages("lubridate") # to extract year from Date
+
+#' Title
+#'
+#' @param VaR 
+#' @param plrets 
+#'
+#' @return
+exceedances <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),]){
+  indicator <- ifelse(plrets[,2]-VaR<0, 1, 0)
+  indicator_df <- data.frame(Date = plrets[,1], Exceedance = as.factor(indicator))
+  exc_per_year  <- indicator_df %>% 
+    mutate(year = year(Date)) %>% 
+    select(Exceedance, year) %>% 
+    count(year, Exceedance) %>% 
+    mutate(n = ifelse(Exceedance==1, n, 0)) %>% 
+    select(-Exceedance) %>% 
+    group_by(year) %>% 
+    summarise(n = sum(n))
+  return(list(total_exc = sum(indicator), exc_per_year = exc_per_year))
+}
+
+exceedences(Uni_EWMA_VaR[,2])
+
+
+
+
+#' Title
+#'
+#' @param VaR_list 
+#' @param plrets 
+#'
+#' @return
+exceedances_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),]){
+  n <- length(VaR_list)
+  matrix_99 <- matrix(0L, nrow = n, ncol = 9)
+  for (i in 1:n){
+    matrix_99[i, 1] <- unlist(exceedances(VaR_list[[i]][,2])$total_exc)
+    matrix_99[i, 2:9] <- unlist(exceedances(VaR_list[[i]][,2])$exc_per_year[,2])
+  }
+  table_99 <- data.frame(matrix_99)
+  colnames(table_99) <- c("Total_Exc", "2004", "2005", "2006", "2007",
+                          "2008", "2009", "2010", "2011")
+  rownames(table_99) <- names(VaR_list)
+  
+  matrix_95 <- matrix(0L, nrow = n, ncol = 9)
+  for (i in 1:n){
+    matrix_95[i, 1] <- unlist(exceedances(VaR_list[[i]][,3])$total_exc)
+    matrix_95[i, 2:9] <- unlist(exceedances(VaR_list[[i]][,3])$exc_per_year[,2])
+  }
+  table_95 <- data.frame(matrix_95)
+  colnames(table_95) <- c("Total_Exc", "2004", "2005", "2006", "2007",
+                          "2008", "2009", "2010", "2011")
+  rownames(table_95) <- names(VaR_list)
+  
+  return(list(table_99 = table_99, table_95 = table_95))
+}
+
+test_VaR_list <- list(EWMA = Uni_EWMA_VaR, Normal_GARCH = Uni_Normal_GARCH_VaR,
+                      t_GJR = Uni_t_GJR_GARCH_VaR)
+exceedances_table(test_VaR_list)$table_99
+exceedances_table(test_VaR_list)$table_95
+
+#-----------------------------------------------------------------------------#
+###### Tests for Independence and Conditional and Unconditional Coverage ######
+#-----------------------------------------------------------------------------#
+
+## Test of unconditional coverage
+LR_uc <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
+  indicator <- ifelse(plrets-VaR<0, 1, 0)
+  n1 <- sum(indicator)
+  n0 <- length(VaR) - n1
+  
+  lik_p <- (1 - p)^n0 * p^n1
+  
+  pi_mle <- n1 / (n0 + n1)
+  lik_pi_mle <- (1 - pi_mle)^n0 * pi_mle^n1
+  
+  LR <- -2 * log(lik_p / lik_pi_mle)
+  return(LR)
+}
+
+uc <- LR_uc(0.01, Uni_t_GJR_GARCH_VaR[,2])
+ugarch_uc <- VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], 
+                     Uni_t_GJR_GARCH_VaR[,2], conf.level = 0.95)$uc.LRstat
+uc==ugarch_uc
+
+## Test of independence
+LR_ind <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
+  indicator <- as.numeric(ifelse(plrets-VaR<0, 1, 0))
+  tab <- table(indicator[-length(indicator)], indicator[-1])
+  n00 <- tab[1,1]
+  n01 <- tab[1,2]
+  n10 <- tab[2,1]
+  n11 <- tab[2,2]
+  
+  pi_MLE_01 <- n01/(n00+n01)
+  pi_MLE_11 <- n11/(n10+n11)
+  lik_Pi1_MLE <- (1 - pi_MLE_01)^n00 * pi_MLE_01^n01 * (1 - pi_MLE_11)^n10 * pi_MLE_11^n11
+  
+  pi2_MLE <- (n01 + n11) / sum(tab)
+  lik_Pi2_MLE <- (1 - pi2_MLE)^(n00 + n10) * pi2_MLE^(n01 + n11)
+  
+  LR <- -2 * log(lik_Pi2_MLE / lik_Pi1_MLE)
+  return(LR)
+}
+
+
+## Joint test of coverage and independence:
+LR_cc <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
+  uc <- LR_uc(p, VaR)
+  ind <- LR_ind(p, VaR)
+  LR <- uc + ind
+  return(LR)
+}
+cc <- LR_cc(0.01, Uni_t_GJR_GARCH_VaR[, 2])
+cc==VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], Uni_t_GJR_GARCH_VaR[,2], conf.level = 0.95)$cc.LRstat
+
+## Create class to return separate list for each test
+setClass(Class="LR_tests",
+         representation(
+           cc  = "list",
+           ind = "list",
+           uc  = "list"
+         )
+)
+
+VaR_LR_tests <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2], conf_level = 0.95){
+  LR_uc <- LR_uc(p, VaR)
+  LR_ind <- LR_ind(p, VaR)
+  LR_cc <- LR_cc(p, VaR)
+  
+  crit_val_uc <- crit_val_ind <- qchisq(conf_level, df = 1)
+  crit_val_cc <- qchisq(conf_level, df = 2)
+  
+  p_val_uc <- 1 - pchisq(LR_uc, df = 1)
+  p_val_ind <- 1 - pchisq(LR_ind, df = 1)
+  p_val_cc <- 1 - pchisq(LR_cc, df = 2)
+  
+  reject_uc <- ifelse(p_val_uc < 1 - conf_level, TRUE, FALSE)
+  reject_ind <- ifelse(p_val_ind < 1 - conf_level, TRUE, FALSE)
+  reject_cc <- ifelse(p_val_cc < 1 - conf_level, TRUE, FALSE)
+  
+  return(new("LR_tests",
+             cc  = list(crit_val_cc = crit_val_cc, LR_cc = LR_cc, p_val_cc = p_val_cc, reject_cc = reject_cc),
+             ind = list(crit_val_ind = crit_val_ind, LR_ind = LR_ind, p_val_ind = p_val_ind, reject_ind = reject_ind),
+             uc  = list(crit_val_uc = crit_val_uc, LR_uc = LR_uc, p_val_uc = p_val_uc, reject_uc = reject_uc)))
+}
+
+VaR_LR_tests(0.01, Uni_t_GJR_GARCH_VaR[, 2])
 
 #---------------------------------------------------------------#
 ########### CPA Test as in Giacomini and White (2006) ###########
@@ -65,6 +237,7 @@ Uni_t_GJR_loss$mean_loss_99
 if (!require(rugarch)) install.packages("rugarch")
 all.equal(VaRloss(0.95, portfolio_plret_df[-c(1:1000),2], Uni_t_GJR_GARCH_VaR[,3]), 
           as.numeric(as.matrix(100*Uni_t_GJR_loss$loss_95)))
+# rugarch VaRloss is 100* the loss calculated above
 
 
 ## Create class to return two lists in CPA_test function
@@ -109,6 +282,7 @@ CPA_test <- function(VaR1, VaR2, plrets = portfolio_plret_df[-c(1:1000),2],
   
   GW_ij_99 <- T * t(Z_bar_99) %*% Omega_inv_99 %*% Z_bar_99
   
+  
   ## 95%
   d_ij_95 <- as.matrix(loss1$loss_95)-as.matrix(loss2$loss_95)
   T <- length(d_ij_95)
@@ -133,24 +307,37 @@ CPA_test <- function(VaR1, VaR2, plrets = portfolio_plret_df[-c(1:1000),2],
   p_val_99 <- 1-pchisq(GW_ij_99,2)
   p_val_95 <- 1-pchisq(GW_ij_95,2)
   
-  ifelse(loss1$mean_loss_99<loss2$mean_loss_99, 
-         c(better_99 <- deparse(substitute(VaR1)), worse_99 <-  deparse(substitute(VaR2))),
-         c(worse_99 <- deparse(substitute(VaR1)), better_99 <-  deparse(substitute(VaR2)))
-         )
+  better_99 <- NULL; worse_99 <- NULL
+  better_95 <- NULL; worse_95 <- NULL
   
-  ifelse(loss1$mean_loss_95<loss2$mean_loss_95, 
-         c(better_95 <- deparse(substitute(VaR1)), worse_95 <-  deparse(substitute(VaR2))),
-         c(worse_95 <- deparse(substitute(VaR1)), better_95 <-  deparse(substitute(VaR2)))
-  )
+  c <- 0 # threshold as in Giacomini and White (2006)
   
   if (p_val_99<=0.05){
     signif_99 <- TRUE
+    fit_99 <- lm(d_ij_99[-1]~t(h_tminus1_99)[,-1])
+    delta_99 <- matrix(coef(fit_99), nrow = 2, ncol = 1)
+    indicator_seq_99 <- numeric(0)
+    for (i in 1:(T-1)) indicator_seq_99[i] <- ifelse(t(delta_99)%*%h_tminus1_99[,i]>c, 1, 0)
+    seq_mean_99 <- 1/T*sum(indicator_seq_99)
+    ifelse(seq_mean_99>0.5, 
+           c(better_99 <- deparse(substitute(VaR1)), worse_99 <-  deparse(substitute(VaR2))),
+           c(worse_99 <- deparse(substitute(VaR1)), better_99 <-  deparse(substitute(VaR2))))
     message(better_99, " significantly outperforms ", worse_99, " for the 99% VaR")
   }
   else{signif_99 <- FALSE}
   
+  
+  
   if (p_val_95<=0.05){
     signif_95 <- TRUE
+    fit_95 <- lm(d_ij_95[-1]~t(h_tminus1_95)[,-1])
+    delta_95 <- matrix(coef(fit_95), nrow = 2, ncol = 1)
+    indicator_seq_95 <- numeric(0)
+    for (i in 1:(T-1)) indicator_seq_95[i] <- ifelse(t(delta_95)%*%h_tminus1_95[,i]>c, 1, 0)
+    seq_mean_95 <- 1/T*sum(indicator_seq_95)
+    ifelse(seq_mean_95>0.5, 
+           c(better_95 <- deparse(substitute(VaR1)), worse_95 <-  deparse(substitute(VaR2))),
+           c(worse_95 <- deparse(substitute(VaR1)), better_95 <-  deparse(substitute(VaR2))))
     message(better_95, " significantly outperforms ", worse_95, " for the 95% VaR")
   }
   else{signif_95 <- FALSE}
@@ -165,3 +352,6 @@ CPA_test <- function(VaR1, VaR2, plrets = portfolio_plret_df[-c(1:1000),2],
 CPA_test(Uni_t_GJR_GARCH_VaR, Uni_EWMA_VaR)
 CPA_test(Uni_t_GJR_GARCH_VaR, Uni_Normal_GARCH_VaR)
 CPA_test(Uni_Normal_GARCH_VaR, Uni_EWMA_VaR)
+
+
+

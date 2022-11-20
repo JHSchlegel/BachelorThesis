@@ -225,10 +225,12 @@ plot(mbm_pf)
 #-----------------------------------------------------------------------------#
 ########### Coefficients and Residuals of Carhart Four-Factor Model ###########
 #-----------------------------------------------------------------------------#
-
+if (!require(tseries)) install.packages(tseries) # for JB test
 n_dates <- dim(FFCFactors_df)[1]
 coefs_mat <- matrix(0L, nrow = 10, ncol = 5) # empty matrix to store coefficients
 error_mat <- matrix(0L, nrow = n_dates, ncol = 10) # empty matrix to store residuals
+adj_R2 <- numeric(10)
+JB <- numeric(10)
 for (i in 1:10){
   # columns 2-11 are the shares
   fit <- lm((joined_df[,i+1]-RF) ~ Mkt.RF + SMB+ HML + Mom,data = joined_df)
@@ -236,6 +238,8 @@ for (i in 1:10){
   plot(fit)
   coefs_mat[i,] <- coef(fit)
   error_mat[,i] <- resid(fit)
+  adj_R2[i] <- summary(fit)$adj.r.squared
+  JB[i] <- jarque.bera.test(resid(fit))$statistic
 }
 # residuals vs fitted looks fine
 # qq-plots show leptokurtic behavior
@@ -247,6 +251,9 @@ rownames(coefs_df) <- c("KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA
 colnames(error_df) <- c("Date", "KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK")
 colnames(coefs_df) <- c("Intercept", "Market", "Size", "Value", "Momentum")
 head(coefs_df); head(error_df)
+
+OLS_table <- data.frame(coefs_df, adj_R2 = adj_R2, JB = JB) %>% round(3)
+OLS_table
 
 ## Plot and investigate error distribution
 error_df %>% 
