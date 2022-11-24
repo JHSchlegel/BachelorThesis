@@ -52,7 +52,12 @@ MomFactor_df <- MomFactor %>%
 View(MomFactor_df)
 
 ## one dataframe for all factors
-FFCFactors_df <- data.frame(FFFactors_df, Mom = MomFactor_df$Mom)
+FFCFactors_pret_df <- data.frame(FFFactors_df, Mom = MomFactor_df$Mom)
+View(FFCFactors_pret_df)
+## Convert percentage returns to percentage log returns
+FFCFactors_df <- data.frame(FFCFactors_pret_df[,1], 
+                                  apply(FFCFactors_pret_df[,-1], 2,  
+                                        function(x) 100 * log( x / 100 + 1)))
 View(FFCFactors_df)
 ## Save newly created dataframe as csv file to allow for easy importing
 write.csv(FFCFactors_df, "Data\\FFCFactors.csv", row.names = FALSE)
