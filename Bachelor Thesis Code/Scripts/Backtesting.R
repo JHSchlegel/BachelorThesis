@@ -6,6 +6,7 @@
 # TODO: CPA test matrix
 # TODO: VaR list implementation for LR tests
 # TODO: check p_value corrections
+# TODO: check whether p or 1-p for coverage etc.
 
 #------------------------------------#
 ########### Importing Data ###########
@@ -25,19 +26,153 @@ Uni_t_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_t_GJR_GARCH.csv",
                                 header = TRUE)
 
 
+#-----------------------------------------------------------------------------#
+###### Tests for Independence and Conditional and Unconditional Coverage ######
+#-----------------------------------------------------------------------------#
+
+#' Test of unconditional coverage
+#'
+#' @param p VaR percentile e.g. 1%
+#' @param VaR VaR forecasts of a model (only the column with p% VaR values)
+#' @param plrets portfolio returns dataframe with dates in first column& returns
+#'in second column
+#'
+#' @return test statistic of likelihood ratio test of unconditional coverage
+LR_uc <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
+  indicator <- ifelse(plrets-VaR<0, 1, 0)
+  n1 <- sum(indicator)
+  n0 <- length(VaR) - n1
+  
+  lik_p <- (1 - p)^n0 * p^n1
+  
+  pi_mle <- n1 / (n0 + n1)
+  lik_pi_mle <- (1 - pi_mle)^n0 * pi_mle^n1
+  
+  LR <- -2 * log(lik_p / lik_pi_mle)
+  return(LR)
+}
+
+uc <- LR_uc(0.01, Uni_t_GJR_GARCH_VaR[,2])
+ugarch_uc <- VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], 
+                     Uni_t_GJR_GARCH_VaR[,2], conf.level = 0.95)$uc.LRstat
+uc==ugarch_uc
+# get same value as rugarch implementation
+
+
+#' Test of independence
+#'
+#' @param p VaR percentile e.g. 1%
+#' @param VaR VaR forecasts of a model (only the column with p% VaR values)
+#' @param plrets portfolio returns dataframe with dates in first column& returns
+#'in second column
+#'
+#' @return test statistic of likelihood ratio test of independence
+LR_ind <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
+  indicator <- as.numeric(ifelse(plrets-VaR<0, 1, 0))
+  tab <- table(indicator[-length(indicator)], indicator[-1])
+  n00 <- tab[1,1]
+  n01 <- tab[1,2]
+  n10 <- tab[2,1]
+  n11 <- tab[2,2]
+  
+  pi_MLE_01 <- n01/(n00+n01)
+  pi_MLE_11 <- n11/(n10+n11)
+  lik_Pi1_MLE <- (1 - pi_MLE_01)^n00 * pi_MLE_01^n01 * (1 - pi_MLE_11)^n10 * pi_MLE_11^n11
+  
+  pi2_MLE <- (n01 + n11) / sum(tab)
+  lik_Pi2_MLE <- (1 - pi2_MLE)^(n00 + n10) * pi2_MLE^(n01 + n11)
+  
+  LR <- -2 * log(lik_Pi2_MLE / lik_Pi1_MLE)
+  return(LR)
+}
+
+
+#' Test of conditional coverage
+#'
+#' @param p VaR percentile e.g. 1%
+#' @param VaR VaR forecasts of a model (only the column with p% VaR values)
+#' @param plrets portfolio returns dataframe with dates in first column& returns
+#'in second column
+#'
+#' @return test statistic of likelihood ratio test of coonditional coverage
+LR_cc <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
+  uc <- LR_uc(p, VaR)
+  ind <- LR_ind(p, VaR)
+  LR <- uc + ind
+  return(LR)
+}
+cc <- LR_cc(0.01, Uni_t_GJR_GARCH_VaR[, 2])
+cc==VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], 
+            Uni_t_GJR_GARCH_VaR[,2], conf.level = 0.95)$cc.LRstat
+# get same value as rugarch implementation
+
+
+## Create class to return separate list for each test
+setClass(Class="LR_tests",
+         representation(
+           cc  = "list",
+           ind = "list",
+           uc  = "list"
+         )
+)
+
+
+#' Test of unconditional coverage
+#'
+#' Implements backtesting as described in Christoffersen (1998) i.e. implements
+#' the LR test of unconditional coverage, the LR test of independence and the LR
+#' test of conditional coverage.
+#'
+#' @param p VaR percentile e.g. 1%
+#' @param VaR VaR forecasts of a model (only the column with p% VaR values)
+#' @param plrets portfolio returns dataframe with dates in first column& returns
+#'in second column
+#' @param conf_level the confidence level of the test
+#'
+#' @return returns instance of class "LR_tests" i.e. a list for each of the three
+#' tests that includes the critical value, the test statistic, the p-value and
+#' the decision i.e. reject or not
+VaR_LR_tests <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2], conf_level = 0.95){
+  LR_uc <- LR_uc(p, VaR)
+  LR_ind <- LR_ind(p, VaR)
+  LR_cc <- LR_cc(p, VaR)
+  
+  crit_val_uc <- crit_val_ind <- qchisq(conf_level, df = 1)
+  crit_val_cc <- qchisq(conf_level, df = 2)
+  
+  p_val_uc <- 1 - pchisq(LR_uc, df = 1)
+  p_val_ind <- 1 - pchisq(LR_ind, df = 1)
+  p_val_cc <- 1 - pchisq(LR_cc, df = 2)
+  
+  reject_uc <- ifelse(p_val_uc < 1 - conf_level, TRUE, FALSE)
+  reject_ind <- ifelse(p_val_ind < 1 - conf_level, TRUE, FALSE)
+  reject_cc <- ifelse(p_val_cc < 1 - conf_level, TRUE, FALSE)
+  
+  return(new("LR_tests",
+             cc  = list(crit_val_cc = crit_val_cc, LR_cc = LR_cc, p_val_cc = p_val_cc, reject_cc = reject_cc),
+             ind = list(crit_val_ind = crit_val_ind, LR_ind = LR_ind, p_val_ind = p_val_ind, reject_ind = reject_ind),
+             uc  = list(crit_val_uc = crit_val_uc, LR_uc = LR_uc, p_val_uc = p_val_uc, reject_uc = reject_uc)))
+}
+
+VaR_LR_tests(0.01, Uni_t_GJR_GARCH_VaR[, 2])
+
+
 #----------------------------------------------------------------#
 ########### Calculate Exceedances and Nominal Coverage ###########
 #----------------------------------------------------------------#
 
-#' Title
+#' Nominal Coverage
+#' 
+#' Calculates and returns the nominal coverage
 #'
-#' @param VaR 
-#' @param plrets 
+#' @param VaR Value at risk forecasts of a model
+#' @param plrets portfolio returns dataframe with dates in first column& returns
+#' in second column
 #'
-#' @return
+#' @return nominal coverage
 nominal_coverage <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
   indicator <- ifelse(plrets-VaR<0, 1, 0)
-  coverage <- 1-sum(indicator)/length(VaR)
+  coverage <- sum(indicator)/length(VaR)
   return(nominal_coverage = coverage)
 }
 
@@ -46,12 +181,16 @@ nominal_coverage(Uni_EWMA_VaR[,2])
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(lubridate)) install.packages("lubridate") # to extract year from Date
 
-#' Title
+#' Exceedances
+#' 
+#' Calculates and returns the total number of exceedances as well as the exceedances
+#' per year
 #'
-#' @param VaR 
-#' @param plrets 
+#' @param VaR Value at risk forecasts of a model
+#' @param plrets portfolio returns dataframe with dates in first column& returns
+#'in second column
 #'
-#' @return
+#' @return list with total number of exceedances and exceedences per year
 exceedances <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),]){
   indicator <- ifelse(plrets[,2]-VaR<0, 1, 0)
   indicator_df <- data.frame(Date = plrets[,1], Exceedance = as.factor(indicator))
@@ -66,17 +205,22 @@ exceedances <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),]){
   return(list(total_exc = sum(indicator), exc_per_year = exc_per_year))
 }
 
-exceedences(Uni_EWMA_VaR[,2])
+exceedances(Uni_EWMA_VaR[,2])
 
 
 
 
-#' Title
+#' Exceedances Table
 #'
-#' @param VaR_list 
-#' @param plrets 
+#' Create tables for the 1% VaR and the 5% VaR that consist of the total number
+#' of exceedances and the exceedences per year 
 #'
-#' @return
+#' @param VaR_list list of VaR dataframes with date in first column, 1% VaR in
+#' second column and 5% VaR in third column
+#' @param plrets portfolio returns dataframe with dates in first column& returns
+#'in second column
+#'
+#' @return list of exceedance tables for 1% VaR and 5% VaR
 exceedances_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),]){
   n <- length(VaR_list)
   matrix_99 <- matrix(0L, nrow = n, ncol = 9)
@@ -107,93 +251,66 @@ test_VaR_list <- list(EWMA = Uni_EWMA_VaR, Normal_GARCH = Uni_Normal_GARCH_VaR,
 exceedances_table(test_VaR_list)$table_99
 exceedances_table(test_VaR_list)$table_95
 
-#-----------------------------------------------------------------------------#
-###### Tests for Independence and Conditional and Unconditional Coverage ######
-#-----------------------------------------------------------------------------#
 
-## Test of unconditional coverage
-LR_uc <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
-  indicator <- ifelse(plrets-VaR<0, 1, 0)
-  n1 <- sum(indicator)
-  n0 <- length(VaR) - n1
+#---------------------------------------------------------------#
+########### Table for Exceedances and LR Test Pvalues ###########
+#---------------------------------------------------------------#
+
+#' Performance table
+#' 
+#' Create a summary table for backtesting that includes nominal coverage,
+#' exceedances (over the years) and LR tests of Christoffersen (1998). 
+#'
+#' @param VaR_list list of VaR dataframes with date in first column, 1% VaR in
+#' second column and 5% VaR in third column
+#' @param plrets portfolio returns dataframe with dates in first column& returns
+#'in second column
+#' @param conf_level confidence level for LR tests of Christoffersen (1998). By
+#' default 95%
+#'
+#' @return list with performance table for 1% VaR and for 5% VaR
+performance_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),],
+                              conf_level = 0.95){
+  n <- length(VaR_list)
+  coverage_99 <- matrix(0L, nrow = n, ncol = 1)
+  tests_99 <- matrix(0L, nrow = n, ncol = 3)
+  for (i in 1:n){
+    coverage_99[i, 1] <- nominal_coverage(VaR_list[[i]][,2], plrets[,2])
+    tests_99[i, 1] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], plrets[,2])@uc$p_val_uc)
+    tests_99[i, 2] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], plrets[,2])@ind$p_val_ind)
+    tests_99[i, 3] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], plrets[,2])@cc$p_val_cc)
+  }
+  exceed_99 <- exceedances_table(VaR_list, plrets)$table_99
+  performance_table_99 <- data.frame(coverage_99, tests_99, exceed_99)
+  colnames(performance_table_99) <- c("coverage_99", "uc", "ind", "cc", 
+                                      "Total_Exc", "2004", "2005", "2006", 
+                                      "2007", "2008", "2009", "2010", "2011")
+  rownames(performance_table_99) <- names(VaR_list)
   
-  lik_p <- (1 - p)^n0 * p^n1
+  coverage_95 <- matrix(0L, nrow = n, ncol = 1)
+  tests_95 <- matrix(0L, nrow = n, ncol = 3)
+  for (i in 1:n){
+    coverage_95[i, 1] <- nominal_coverage(VaR_list[[i]][,3], plrets[,2])
+    tests_95[i, 1] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], plrets[,2])@uc$p_val_uc)
+    tests_95[i, 2] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], plrets[,2])@ind$p_val_ind)
+    tests_95[i, 3] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], plrets[,2])@cc$p_val_cc)
+  }
+  exceed_95 <- exceedances_table(VaR_list, plrets)$table_95
+  performance_table_95 <- data.frame(coverage_95, tests_95, exceed_95)
+  colnames(performance_table_95) <- c("coverage_95", "uc", "ind", "cc", 
+                                      "Total_Exc", "2004", "2005", "2006", 
+                                      "2007", "2008", "2009", "2010", "2011")
+  rownames(performance_table_95) <- names(VaR_list)
   
-  pi_mle <- n1 / (n0 + n1)
-  lik_pi_mle <- (1 - pi_mle)^n0 * pi_mle^n1
-  
-  LR <- -2 * log(lik_p / lik_pi_mle)
-  return(LR)
+  return(list(performance_table_99 = performance_table_99 %>% round(3), 
+              performance_table_95 = performance_table_95 %>% round(3)))
 }
 
-uc <- LR_uc(0.01, Uni_t_GJR_GARCH_VaR[,2])
-ugarch_uc <- VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], 
-                     Uni_t_GJR_GARCH_VaR[,2], conf.level = 0.95)$uc.LRstat
-uc==ugarch_uc
 
-## Test of independence
-LR_ind <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
-  indicator <- as.numeric(ifelse(plrets-VaR<0, 1, 0))
-  tab <- table(indicator[-length(indicator)], indicator[-1])
-  n00 <- tab[1,1]
-  n01 <- tab[1,2]
-  n10 <- tab[2,1]
-  n11 <- tab[2,2]
-  
-  pi_MLE_01 <- n01/(n00+n01)
-  pi_MLE_11 <- n11/(n10+n11)
-  lik_Pi1_MLE <- (1 - pi_MLE_01)^n00 * pi_MLE_01^n01 * (1 - pi_MLE_11)^n10 * pi_MLE_11^n11
-  
-  pi2_MLE <- (n01 + n11) / sum(tab)
-  lik_Pi2_MLE <- (1 - pi2_MLE)^(n00 + n10) * pi2_MLE^(n01 + n11)
-  
-  LR <- -2 * log(lik_Pi2_MLE / lik_Pi1_MLE)
-  return(LR)
-}
+performance_table(test_VaR_list)$performance_table_99 
+performance_table(test_VaR_list)$performance_table_95
 
 
-## Joint test of coverage and independence:
-LR_cc <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
-  uc <- LR_uc(p, VaR)
-  ind <- LR_ind(p, VaR)
-  LR <- uc + ind
-  return(LR)
-}
-cc <- LR_cc(0.01, Uni_t_GJR_GARCH_VaR[, 2])
-cc==VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], Uni_t_GJR_GARCH_VaR[,2], conf.level = 0.95)$cc.LRstat
-
-## Create class to return separate list for each test
-setClass(Class="LR_tests",
-         representation(
-           cc  = "list",
-           ind = "list",
-           uc  = "list"
-         )
-)
-
-VaR_LR_tests <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2], conf_level = 0.95){
-  LR_uc <- LR_uc(p, VaR)
-  LR_ind <- LR_ind(p, VaR)
-  LR_cc <- LR_cc(p, VaR)
-  
-  crit_val_uc <- crit_val_ind <- qchisq(conf_level, df = 1)
-  crit_val_cc <- qchisq(conf_level, df = 2)
-  
-  p_val_uc <- 1 - pchisq(LR_uc, df = 1)
-  p_val_ind <- 1 - pchisq(LR_ind, df = 1)
-  p_val_cc <- 1 - pchisq(LR_cc, df = 2)
-  
-  reject_uc <- ifelse(p_val_uc < 1 - conf_level, TRUE, FALSE)
-  reject_ind <- ifelse(p_val_ind < 1 - conf_level, TRUE, FALSE)
-  reject_cc <- ifelse(p_val_cc < 1 - conf_level, TRUE, FALSE)
-  
-  return(new("LR_tests",
-             cc  = list(crit_val_cc = crit_val_cc, LR_cc = LR_cc, p_val_cc = p_val_cc, reject_cc = reject_cc),
-             ind = list(crit_val_ind = crit_val_ind, LR_ind = LR_ind, p_val_ind = p_val_ind, reject_ind = reject_ind),
-             uc  = list(crit_val_uc = crit_val_uc, LR_uc = LR_uc, p_val_uc = p_val_uc, reject_uc = reject_uc)))
-}
-
-VaR_LR_tests(0.01, Uni_t_GJR_GARCH_VaR[, 2])
 
 #---------------------------------------------------------------#
 ########### CPA Test as in Giacomini and White (2006) ###########
@@ -209,7 +326,7 @@ VaR_LR_tests(0.01, Uni_t_GJR_GARCH_VaR[, 2])
 #' 95% VaR in third column
 #' @param plrets portfolio returns; by default portfolio returns from t=1001 
 #' until t=T
-#' @param percentile VaR percentiles; by default c(99, 95)
+#' @param percentile 1- VaR percentiles; by default c(0.99, 0.95)
 #'
 #' @return list w/ losses for the percentiles as first two elements and 
 #' mean losses for the percentiles as last two elements
@@ -240,6 +357,43 @@ all.equal(VaRloss(0.95, portfolio_plret_df[-c(1:1000),2], Uni_t_GJR_GARCH_VaR[,3
 # rugarch VaRloss is 100* the loss calculated above
 
 
+#' Ranking VaR forecasts
+#' 
+#' Ranking VaR forecasts in ascending order based on their average VaR/ tick loss.
+#'
+#' @param VaR_list list of VaR dataframes with date in first column, 1% VaR in
+#' second column and 5% VaR in third column
+#' @param plrets portfolio returns; by default portfolio returns from t=1001 
+#' until t=T
+#' @param percentile 1- VaR percentiles; by default c(0.99, 0.95)
+#'
+#' @return list with tables for 1% and 5% VaR ranking
+VaR_loss_ranking <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),],
+                             percentile = c(0.99, 0.95)){
+  n <- length(VaR_list)
+  matrix_99 <- matrix(0L, nrow = n, ncol = 1)
+  matrix_95 <- matrix(0L, nrow = n, ncol = 1)
+  for (i in 1:n){
+    matrix_99[i, 1] <- unlist(loss_VaR(VaR_list[[i]])$mean_loss_99)
+    matrix_95[i, 1] <- unlist(loss_VaR(VaR_list[[i]])$mean_loss_95)
+  }
+  table_99 <- data.frame(matrix_99)
+  colnames(table_99) <- c("mean_VaR_loss")
+  rownames(table_99) <- names(VaR_list)
+  table_99 <- table_99 %>% arrange(mean_VaR_loss) # arange in ascending order
+  
+  
+  table_95 <- data.frame(matrix_95)
+  colnames(table_95) <- c("mean_VaR_loss")
+  rownames(table_95) <- names(VaR_list)
+  table_95 <- table_95 %>% arrange(mean_VaR_loss) 
+  return(list(table_99 = table_99, table_95 = table_95))
+}
+
+VaR_loss_ranking(test_VaR_list)$table_99
+VaR_loss_ranking(test_VaR_list)$table_95
+
+
 ## Create class to return two lists in CPA_test function
 setClass(Class="CPA",
          representation(
@@ -249,13 +403,18 @@ setClass(Class="CPA",
 )
 
 #' Conditional Predictive Ability Test by Giacomini and White (2006)
+#' 
+#' Implements CPA test to allow for binary model comparisons in predictive ability
 #'
-#' @param VaR1 
-#' @param VaR2 
-#' @param plrets 
-#' @param percentile 
+#' @param VaR1 VaR forecasts of model i (whole dataframe)
+#' @param VaR2 VaR forecasts of model j (whole dataframe)
+#' @param plrets portfolio returns; by default portfolio returns from t=1001 
+#' until t=T
+#' @param percentile 1- VaR percentiles (by default: 99% and 95%)
 #'
-#' @return
+#' @return instance of class "CPA" i.e. for the 1% and the 5% VaR it returns
+#' a list of the test statistic, pvalue, critical value and the test decision
+#' (i.e. which model has higher predictive ability)
 CPA_test <- function(VaR1, VaR2, plrets = portfolio_plret_df[-c(1:1000),2], 
                                           percentile = c(0.99, 0.95)){
   
@@ -354,4 +513,4 @@ CPA_test(Uni_t_GJR_GARCH_VaR, Uni_Normal_GARCH_VaR)
 CPA_test(Uni_Normal_GARCH_VaR, Uni_EWMA_VaR)
 
 
-
+CPA_table <- function()

@@ -55,7 +55,7 @@ View(MomFactor_df)
 FFCFactors_pret_df <- data.frame(FFFactors_df, Mom = MomFactor_df$Mom)
 View(FFCFactors_pret_df)
 ## Convert percentage returns to percentage log returns
-FFCFactors_df <- data.frame(FFCFactors_pret_df[,1], 
+FFCFactors_df <- data.frame(Date = FFCFactors_pret_df[,1], 
                                   apply(FFCFactors_pret_df[,-1], 2,  
                                         function(x) 100 * log( x / 100 + 1)))
 View(FFCFactors_df)
