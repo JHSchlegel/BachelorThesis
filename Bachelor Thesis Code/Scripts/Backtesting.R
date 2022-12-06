@@ -22,14 +22,66 @@ Uni_EWMA_VaR <- read.csv("./Data/VaR/Uni_EWMA_VaR.csv",
                          header = TRUE)
 Uni_t_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_t_GJR_GARCH.csv", 
                                 header = TRUE)
-
+Uni_Skewt_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_GJR_GARCH.csv", 
+                                header = TRUE)
 Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv", 
                                  header = TRUE)
-
 
 # Multivariate
 Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
                                 header = TRUE)
+
+#--------------------------------------------------#
+########### VaR Exceedence Plot Function ###########
+#--------------------------------------------------#
+# before the more formal tests it is always a good idea to first have a look at a
+# graphical representation
+
+
+# load lubridate for year() function to extract year from Date
+if (!require(lubridate)) install.packages("lubridate")
+
+#' VaR Exceedence Plot
+#' 
+#' Plots returns and line of VaR and marks every point where the return is below the 
+#' VaR line as an exceedence and displays how many exceedences there are in each year
+#' 
+#' @param dataframe dataframe with VaR
+#' @param VaR_in_col_nr integer indicating in which column of dataframe the VaR is
+#' @param pf_plrets dataframe of portfolio percentage returns
+#' @param alpha VaR level in percent w/o percentage sign
+#' @param modelname Name of model as character
+#' 
+#' @return Exceedences plot which highlights exceedances and
+#'  displays number of exceedances per year
+VaR_exceed_plot <- function(dataframe, VaR_in_col_nr, pf_plrets, alpha, modelname){
+  VaR_df <- data.frame(Date = as.Date(dataframe[,1]), VaR = dataframe[,VaR_in_col_nr], 
+                       Exceedance = as.factor(pf_plrets[-c(1:1000),2]<dataframe[,VaR_in_col_nr]))
+  exceedances_per_year  <- VaR_df %>% 
+    mutate(year = year(Date)) %>% 
+    select(Exceedance, year) %>% 
+    count(year, Exceedance) %>% 
+    mutate(n = ifelse(Exceedance==TRUE, n, 0)) %>% 
+    select(-Exceedance) %>% 
+    group_by(year) %>% 
+    summarise(n = sum(n))
+  
+  ggplot(VaR_df, aes(x = Date, y = VaR))+
+    geom_point(aes(x = Date, y = pf_plrets[-c(1:1000), 2], color = Exceedance, shape = Exceedance), size =1.5, alpha = 2)+
+    scale_shape_manual(values = c(20, 4), name="", labels = c("Lower than VaR", "Greater than VaR"))+
+    scale_color_manual(values = c("gray", "red"), name = "", labels = c("Lower than VaR", "Greater than VaR"))+
+    geom_line(alpha = 0.7)+
+    labs(y = "Daily Portfolio Returns", x = "Date", 
+         title = paste0(alpha, "% VaR Exceedances Plot for ",modelname))+
+    theme_light()+
+    theme(legend.position = c(.15, .8), legend.background = element_rect(color = NA), legend.key = element_rect(color = "transparent"))+
+    annotate("text", x = as.Date("2005-01-15"), y = -7, size = 3, hjust = 0,
+             label = paste("Number of Exceedances per Year:", "\n2004:", exceedances_per_year$n[1], "\n2005:", exceedances_per_year$n[2],
+                           "\n2006:", exceedances_per_year$n[3], "\n2007:", exceedances_per_year$n[4]))+
+    annotate("text", x = as.Date("2005-10-15"), y = -7, size = 3, hjust = 0,
+             label = paste(" ","\n2008:", exceedances_per_year$n[5],"\n2009:", exceedances_per_year$n[6],
+                           "\n2010:", exceedances_per_year$n[7], "\n2011:", exceedances_per_year$n[8]))
+}
 
 
 #-----------------------------------------------------------------------------#
@@ -583,3 +635,5 @@ CPA_table(test_VaR_list)
 #--------------------------------------------------------------#
 
 
+VaR_exceed_plot(Uni_Normal_GARCH_VaR, 3, portfolio_plret_df, alpha = 95, "Uni_Normal_GARCH")
+VaR_exceed_plot(Uni_Normal_GARCH_VaR, 2, portfolio_plret_df, alpha = 99, "Uni_Normal_GARCH")
