@@ -2,9 +2,6 @@
 ############################### Backtesting ###############################
 #=========================================================================#
 
-# TODO: ranking of mean loss
-# TODO: CPA test matrix
-# TODO: VaR list implementation for LR tests
 # TODO: check p_value corrections
 # TODO: check whether p or 1-p for coverage etc.
 
@@ -18,6 +15,7 @@ portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date,
                                  Portfolio = rowMeans(stocks_plret_df[,-1]))
 
 ## VaR
+# Univariate:
 Uni_Normal_GARCH_VaR <- read.csv("./Data/VaR/Uni_Normal_GARCH_VaR.csv", 
                                  header = TRUE)
 Uni_EWMA_VaR <- read.csv("./Data/VaR/Uni_EWMA_VaR.csv", 
@@ -25,10 +23,21 @@ Uni_EWMA_VaR <- read.csv("./Data/VaR/Uni_EWMA_VaR.csv",
 Uni_t_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_t_GJR_GARCH.csv", 
                                 header = TRUE)
 
+Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv", 
+                                 header = TRUE)
+
+
+# Multivariate
+Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
+                                header = TRUE)
+
 
 #-----------------------------------------------------------------------------#
 ###### Tests for Independence and Conditional and Unconditional Coverage ######
 #-----------------------------------------------------------------------------#
+
+## Load rugarch to compare tests to tests implemented in rugarch
+if (!require(rugarch)) install.packages("rugarch")
 
 #' Test of unconditional coverage
 #'
@@ -247,7 +256,7 @@ exceedances_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),]
 }
 
 test_VaR_list <- list(EWMA = Uni_EWMA_VaR, Normal_GARCH = Uni_Normal_GARCH_VaR,
-                      t_GJR = Uni_t_GJR_GARCH_VaR)
+                      t_GJR = Uni_t_GJR_GARCH_VaR, skewt_NGARCH = Uni_Skewt_NGARCH_VaR)
 exceedances_table(test_VaR_list)$table_99
 exceedances_table(test_VaR_list)$table_95
 
@@ -351,7 +360,6 @@ Uni_t_GJR_loss$mean_loss_99
 
 
 ## Compare w/ VaRloss function from rugarch package for e.g. GJR GARCH:
-if (!require(rugarch)) install.packages("rugarch")
 all.equal(VaRloss(0.95, portfolio_plret_df[-c(1:1000),2], Uni_t_GJR_GARCH_VaR[,3]), 
           as.numeric(as.matrix(100*Uni_t_GJR_loss$loss_95)))
 # rugarch VaRloss is 100* the loss calculated above
@@ -475,15 +483,15 @@ CPA_test <- function(VaR1, VaR2, plrets = portfolio_plret_df[-c(1:1000),2],
     signif_99 <- TRUE
     fit_99 <- lm(d_ij_99[-1]~t(h_tminus1_99)[,-1])
     delta_99 <- matrix(coef(fit_99), nrow = 2, ncol = 1)
-    indicator_seq_99 <- numeric(0)
-    for (i in 1:(T-1)) indicator_seq_99[i] <- ifelse(t(delta_99)%*%h_tminus1_99[,i]>c, 1, 0)
+    indicator_seq_99 <- numeric(T-1)
+    for (i in 1:(T-1)) indicator_seq_99[i] <- ifelse(t(delta_99)%*%h_tminus1_99[,i]<c, 1, 0)
     seq_mean_99 <- 1/T*sum(indicator_seq_99)
     ifelse(seq_mean_99>0.5, 
            c(better_99 <- deparse(substitute(VaR1)), worse_99 <-  deparse(substitute(VaR2))),
            c(worse_99 <- deparse(substitute(VaR1)), better_99 <-  deparse(substitute(VaR2))))
     message(better_99, " significantly outperforms ", worse_99, " for the 99% VaR")
   }
-  else{signif_99 <- FALSE}
+  else{signif_99 <- FALSE; better_99 <- NULL; worse_99 <- NULL; seq_mean_99 <- NA}
   
   
   
@@ -491,26 +499,87 @@ CPA_test <- function(VaR1, VaR2, plrets = portfolio_plret_df[-c(1:1000),2],
     signif_95 <- TRUE
     fit_95 <- lm(d_ij_95[-1]~t(h_tminus1_95)[,-1])
     delta_95 <- matrix(coef(fit_95), nrow = 2, ncol = 1)
-    indicator_seq_95 <- numeric(0)
-    for (i in 1:(T-1)) indicator_seq_95[i] <- ifelse(t(delta_95)%*%h_tminus1_95[,i]>c, 1, 0)
+    indicator_seq_95 <- numeric(T-1)
+    for (i in 1:(T-1)) indicator_seq_95[i] <- ifelse(t(delta_95)%*%h_tminus1_95[,i]<c, 1, 0)
     seq_mean_95 <- 1/T*sum(indicator_seq_95)
     ifelse(seq_mean_95>0.5, 
            c(better_95 <- deparse(substitute(VaR1)), worse_95 <-  deparse(substitute(VaR2))),
            c(worse_95 <- deparse(substitute(VaR1)), better_95 <-  deparse(substitute(VaR2))))
     message(better_95, " significantly outperforms ", worse_95, " for the 95% VaR")
   }
-  else{signif_95 <- FALSE}
+  else{signif_95 <- FALSE; better_95 <- NULL; worse_95 <- NULL; seq_mean_95 <- NA}
   
   return(new("CPA", 
              VaR_99 = list(GW_ij_99 = GW_ij_99, p_val_99 = p_val_99, 
-                           signif_99 = signif_99, better_99 = better_99, worse_99 = worse_99),
+                           signif_99 = signif_99, better_99 = better_99, 
+                           worse_99 = worse_99, seq_mean_99 = seq_mean_99),
              VaR_95 = list(GW_ij_95 = GW_ij_95, p_val_95 = p_val_95, 
-                       signif_95 = signif_95, better_95 = better_95, worse_95 = worse_95)
+                       signif_95 = signif_95, better_95 = better_95, 
+                       worse_95 = worse_95, seq_mean_95 = seq_mean_95)
          ))
 }
+
 CPA_test(Uni_t_GJR_GARCH_VaR, Uni_EWMA_VaR)
 CPA_test(Uni_t_GJR_GARCH_VaR, Uni_Normal_GARCH_VaR)
 CPA_test(Uni_Normal_GARCH_VaR, Uni_EWMA_VaR)
 
 
-CPA_table <- function()
+
+#' CPA Test table
+#'
+#' @param VaR_list 
+#' @param plrets 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+CPA_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),2]){
+  CPA_matrix_99 <- matrix(nrow = length(VaR_list)-1, ncol = length(VaR_list)-1)
+  CPA_matrix_95 <- matrix(nrow = length(VaR_list)-1, ncol = length(VaR_list)-1)
+  rows <- VaR_list[-length(VaR_list)]
+  cols <- VaR_list[-1]
+  
+  
+  for (i in seq_along(rows)){
+    for (j in seq_along(cols)){
+      if (i<=j){
+        p_val_99 <- CPA_test(rows[[i]], cols[[j]], plrets = plrets)@VaR_99$p_val_99
+        better_99 <- CPA_test(rows[[i]], cols[[j]], plrets = plrets)@VaR_99$better_99
+        seq_mean_99 <- CPA_test(rows[[i]], cols[[j]], plrets = plrets)@VaR_99$seq_mean_99
+        
+        p_val_95 <- CPA_test(rows[[i]], cols[[j]], plrets = plrets)@VaR_95$p_val_95
+        better_95 <- CPA_test(rows[[i]], cols[[j]], plrets = plrets)@VaR_95$better_95
+        seq_mean_95 <- CPA_test(rows[[i]], cols[[j]], plrets = plrets)@VaR_95$seq_mean_95
+        
+        CPA_matrix_99[i,j] <- paste(as.character(round(as.numeric(p_val_99),3)),
+                                    as.character(better_99),
+                                    as.character(round(as.numeric(seq_mean_99), 3)),
+                                    sep  =";")
+        CPA_matrix_95[i,j] <- paste(as.character(round(as.numeric(p_val_95),3)),
+                                    as.character(better_95),
+                                    as.character(round(as.numeric(seq_mean_95), 3)),
+                                    sep  =";")
+        }
+    }
+  }
+  CPA_table_99 <- data.frame(CPA_matrix_99)
+  colnames(CPA_table_99) <- names(cols)
+  rownames(CPA_table_99) <- names(rows)
+  
+  CPA_table_95 <- data.frame(CPA_matrix_95)
+  colnames(CPA_table_95) <- names(cols)
+  rownames(CPA_table_95) <- names(rows)
+  
+  return(list(CPA_table_99 = CPA_table_99,
+              CPA_table_95 = CPA_table_95))
+}
+
+CPA_table(test_VaR_list)
+
+
+#--------------------------------------------------------------#
+########### Backtesting Applied to our VaR Forecasts ###########
+#--------------------------------------------------------------#
+
+
