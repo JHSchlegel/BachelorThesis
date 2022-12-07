@@ -4,6 +4,8 @@
 
 # TODO: check p_value corrections
 # TODO: check whether p or 1-p for coverage etc.
+# TODO: VaR list with all VaRs; first uni then multivariate models
+# TODO: CPA tests only for models which passed christoffersen?
 
 #------------------------------------#
 ########### Importing Data ###########
@@ -30,6 +32,8 @@ Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv",
 # Multivariate
 Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
                                 header = TRUE)
+Multi_DCC_NGARCH_VaR <- read.csv("./Data/VaR/Multi_dcc_NGARCH_GARCH.csv",
+                                 header = TRUE)
 
 #--------------------------------------------------#
 ########### VaR Exceedence Plot Function ###########
@@ -83,6 +87,8 @@ VaR_exceed_plot <- function(dataframe, VaR_in_col_nr, pf_plrets, alpha, modelnam
                            "\n2010:", exceedances_per_year$n[7], "\n2011:", exceedances_per_year$n[8]))
 }
 
+VaR_exceed_plot(Uni_Normal_GARCH_VaR, 3, portfolio_plret_df, alpha = 95, "Uni_Normal_GARCH")
+VaR_exceed_plot(Uni_Normal_GARCH_VaR, 2, portfolio_plret_df, alpha = 99, "Uni_Normal_GARCH")
 
 #-----------------------------------------------------------------------------#
 ###### Tests for Independence and Conditional and Unconditional Coverage ######
@@ -308,7 +314,11 @@ exceedances_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),]
 }
 
 test_VaR_list <- list(EWMA = Uni_EWMA_VaR, Normal_GARCH = Uni_Normal_GARCH_VaR,
-                      t_GJR = Uni_t_GJR_GARCH_VaR, skewt_NGARCH = Uni_Skewt_NGARCH_VaR)
+                      t_GJR = Uni_t_GJR_GARCH_VaR, 
+                      Skewt_GJR = Uni_Skewt_GJR_GARCH_VaR,
+                      skewt_NGARCH = Uni_Skewt_NGARCH_VaR,
+                      normal_DCC_GARCH = Multi_DCC_GARCH_VaR,
+                      normal_DCC_NGARCH = Multi_DCC_GARCH_VaR)
 exceedances_table(test_VaR_list)$table_99
 exceedances_table(test_VaR_list)$table_95
 
@@ -582,10 +592,9 @@ CPA_test(Uni_Normal_GARCH_VaR, Uni_EWMA_VaR)
 #' @param VaR_list 
 #' @param plrets 
 #'
-#' @return
-#' @export
-#'
-#' @examples
+#' @return list of tables for the two VaR levels. Each entry in the table includes
+#' the p-value, which model performed significantly better (if one did) and the
+#' value of the I_{T,c} in case of significantly higher predictive ability
 CPA_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),2]){
   CPA_matrix_99 <- matrix(nrow = length(VaR_list)-1, ncol = length(VaR_list)-1)
   CPA_matrix_95 <- matrix(nrow = length(VaR_list)-1, ncol = length(VaR_list)-1)
@@ -634,6 +643,9 @@ CPA_table(test_VaR_list)
 ########### Backtesting Applied to our VaR Forecasts ###########
 #--------------------------------------------------------------#
 
+## Visual Inspection:
 
-VaR_exceed_plot(Uni_Normal_GARCH_VaR, 3, portfolio_plret_df, alpha = 95, "Uni_Normal_GARCH")
-VaR_exceed_plot(Uni_Normal_GARCH_VaR, 2, portfolio_plret_df, alpha = 99, "Uni_Normal_GARCH")
+## Performance Table:
+performance_table(VaR_list)$performance_table_99 
+performance_table(VaR_list)$performance_table_95
+
