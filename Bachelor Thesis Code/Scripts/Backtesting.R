@@ -32,8 +32,9 @@ Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv",
 # Multivariate
 Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
                                 header = TRUE)
-Multi_DCC_NGARCH_VaR <- read.csv("./Data/VaR/Multi_dcc_NGARCH_GARCH.csv",
-                                 header = TRUE)
+Multi_Fortin_Normal_VaR <- read.csv("./Data/VaR/Multi_cop_norm_VaR.csv", header = TRUE)
+Multi_Fortin_Normal_VaR <- data.frame(date = portfolio_plret_df[-c(1:1000), 1], Multi_Fortin_Normal_VaR)
+
 
 #--------------------------------------------------#
 ########### VaR Exceedence Plot Function ###########
@@ -44,6 +45,7 @@ Multi_DCC_NGARCH_VaR <- read.csv("./Data/VaR/Multi_dcc_NGARCH_GARCH.csv",
 
 # load lubridate for year() function to extract year from Date
 if (!require(lubridate)) install.packages("lubridate")
+if (!require(tidyverse)) install.packages("tidyverse")
 
 #' VaR Exceedence Plot
 #' 
@@ -222,13 +224,14 @@ VaR_LR_tests <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2], conf
 }
 
 VaR_LR_tests(0.01, Uni_t_GJR_GARCH_VaR[, 2])
-
+VaR_LR_tests(0.01, Multi_Fortin_Normal2_VaR[, 2])
+as.numeric(Multi_Fortin_Normal2_VaR[1,2])
 
 #----------------------------------------------------------------#
 ########### Calculate Exceedances and Nominal Coverage ###########
 #----------------------------------------------------------------#
 
-#' Nominal Coverage
+#' Empirical Coverage
 #' 
 #' Calculates and returns the nominal coverage
 #'
@@ -237,13 +240,13 @@ VaR_LR_tests(0.01, Uni_t_GJR_GARCH_VaR[, 2])
 #' in second column
 #'
 #' @return nominal coverage
-nominal_coverage <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
+empirical_coverage <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
   indicator <- ifelse(plrets-VaR<0, 1, 0)
   coverage <- sum(indicator)/length(VaR)
-  return(nominal_coverage = coverage)
+  return(empirical_coverage = coverage)
 }
 
-nominal_coverage(Uni_EWMA_VaR[,2])
+empirical_coverage(Uni_EWMA_VaR[,2])
 
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(lubridate)) install.packages("lubridate") # to extract year from Date
@@ -318,10 +321,9 @@ test_VaR_list <- list(EWMA = Uni_EWMA_VaR, Normal_GARCH = Uni_Normal_GARCH_VaR,
                       Skewt_GJR = Uni_Skewt_GJR_GARCH_VaR,
                       skewt_NGARCH = Uni_Skewt_NGARCH_VaR,
                       normal_DCC_GARCH = Multi_DCC_GARCH_VaR,
-                      normal_DCC_NGARCH = Multi_DCC_GARCH_VaR)
+                      Multi_Fortin_Normal_VaR=Multi_Fortin_Normal_VaR)
 exceedances_table(test_VaR_list)$table_99
 exceedances_table(test_VaR_list)$table_95
-
 
 #---------------------------------------------------------------#
 ########### Table for Exceedances and LR Test Pvalues ###########
@@ -346,14 +348,14 @@ performance_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),]
   coverage_99 <- matrix(0L, nrow = n, ncol = 1)
   tests_99 <- matrix(0L, nrow = n, ncol = 3)
   for (i in 1:n){
-    coverage_99[i, 1] <- nominal_coverage(VaR_list[[i]][,2], plrets[,2])
+    coverage_99[i, 1] <- empirical_coverage(VaR_list[[i]][,2], plrets[,2])
     tests_99[i, 1] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], plrets[,2])@uc$p_val_uc)
     tests_99[i, 2] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], plrets[,2])@ind$p_val_ind)
     tests_99[i, 3] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], plrets[,2])@cc$p_val_cc)
   }
   exceed_99 <- exceedances_table(VaR_list, plrets)$table_99
   performance_table_99 <- data.frame(coverage_99, tests_99, exceed_99)
-  colnames(performance_table_99) <- c("coverage_99", "uc", "ind", "cc", 
+  colnames(performance_table_99) <- c("coverage_1%", "uc", "ind", "cc", 
                                       "Total_Exc", "2004", "2005", "2006", 
                                       "2007", "2008", "2009", "2010", "2011")
   rownames(performance_table_99) <- names(VaR_list)
@@ -361,14 +363,14 @@ performance_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),]
   coverage_95 <- matrix(0L, nrow = n, ncol = 1)
   tests_95 <- matrix(0L, nrow = n, ncol = 3)
   for (i in 1:n){
-    coverage_95[i, 1] <- nominal_coverage(VaR_list[[i]][,3], plrets[,2])
+    coverage_95[i, 1] <- empirical_coverage(VaR_list[[i]][,3], plrets[,2])
     tests_95[i, 1] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], plrets[,2])@uc$p_val_uc)
     tests_95[i, 2] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], plrets[,2])@ind$p_val_ind)
     tests_95[i, 3] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], plrets[,2])@cc$p_val_cc)
   }
   exceed_95 <- exceedances_table(VaR_list, plrets)$table_95
   performance_table_95 <- data.frame(coverage_95, tests_95, exceed_95)
-  colnames(performance_table_95) <- c("coverage_95", "uc", "ind", "cc", 
+  colnames(performance_table_95) <- c("coverage_5%", "uc", "ind", "cc", 
                                       "Total_Exc", "2004", "2005", "2006", 
                                       "2007", "2008", "2009", "2010", "2011")
   rownames(performance_table_95) <- names(VaR_list)
@@ -589,9 +591,11 @@ CPA_test(Uni_Normal_GARCH_VaR, Uni_EWMA_VaR)
 
 #' CPA Test table
 #'
-#' @param VaR_list 
-#' @param plrets 
-#'
+#' @param VaR_list list of VaR dataframes with date in first column, 1% VaR in
+#' second column and 5% VaR in third column
+#' @param plrets portfolio returns; by default portfolio returns from t=1001 
+#' until t=T
+#' 
 #' @return list of tables for the two VaR levels. Each entry in the table includes
 #' the p-value, which model performed significantly better (if one did) and the
 #' value of the I_{T,c} in case of significantly higher predictive ability
@@ -644,6 +648,8 @@ CPA_table(test_VaR_list)
 #--------------------------------------------------------------#
 
 ## Visual Inspection:
+VaR_exceed_plot(Multi_DCC_GARCH_VaR, 2, portfolio_plret_df, 0.01, "DCC GARCH")
+
 
 ## Performance Table:
 performance_table(VaR_list)$performance_table_99 

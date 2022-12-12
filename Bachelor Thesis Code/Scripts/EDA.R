@@ -120,6 +120,8 @@ all.equal(FFCFactors_df$Date, stocks_plret_df$Date)
 # # ## Save the created dataframe as a csv file to allow for easy importing and guarantee reproducibility
 # write.csv(stocks_plret_df, "Data\\StockPlrets.csv", row.names = FALSE)
 
+
+
 #-----------------------------------------------------------------------------------------------#
 ########### Calculate Portfolio Percentage Log Returns of Equally Weighted Portfolio ###########
 #-----------------------------------------------------------------------------------------------#

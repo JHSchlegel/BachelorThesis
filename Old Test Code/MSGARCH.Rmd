@@ -88,3 +88,13 @@ start <- end-length(VaR)
 VaRplot(0.05, portfolio.plret.ts[start:end], VaR)
 ```
 
+```{r}
+data("dem2gbp", package = "MSGARCH")
+ms2.garch.n <- CreateSpec(variance.spec = list(model = "sGARCH"),
+                          distribution.spec = list(distribution = "norm"),
+                          switch.spec = list(K = 2))
+fit.ml <- FitML(spec = ms2.garch.n, data = dem2gbp)
+summary(fit.ml)
+
+```
+

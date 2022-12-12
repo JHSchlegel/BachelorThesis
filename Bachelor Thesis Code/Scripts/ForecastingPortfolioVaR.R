@@ -10,8 +10,6 @@ if (!require(xts)) install.packages("xts")
 
 
 
-# TODO: use AR(1)-GARCH(1,1) for univiariate models
-
 #--------------------------------------------------------#
 ########### Import Data and Create xts Objects ###########
 #--------------------------------------------------------#
