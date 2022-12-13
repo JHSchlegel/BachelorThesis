@@ -463,6 +463,7 @@ for (i in 1:n_window){
   #sqrt_h
   chol_h <- chol(dcc_fcst_cov)
   percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
+  #percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(sqrt_h%*%t(res_sim))
   
   # hist(logret[,1], breaks = 50)
   # dim(logret)

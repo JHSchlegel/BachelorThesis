@@ -32,10 +32,8 @@ Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv",
 # Multivariate
 Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
                                 header = TRUE)
-#Multi_Fortin_Normal_VaR <- read.csv("./Data/VaR/Multi_cop_norm_VaR.csv", header = TRUE)
-#Multi_Fortin_Normal_VaR <- data.frame(date = portfolio_plret_df[-c(1:1000), 1], Multi_Fortin_Normal_VaR)
 
-Multi_Fortin_Normal3_VaR <- read.csv("./Data/VaR/Multi_cop_norm3_VaR.csv", header = TRUE)
+Multi_Fortin_Normal_VaR <- read.csv("./Data/VaR/Multi_cop_norm_VaR.csv", header = TRUE)
 
 Multi_Fortin_t_VaR <- read.csv("./Data/VaR/Multi_cop_t_VaR.csv", header = TRUE)
 #--------------------------------------------------#
@@ -321,7 +319,7 @@ test_VaR_list <- list(EWMA = Uni_EWMA_VaR, Normal_GARCH = Uni_Normal_GARCH_VaR,
                       Skewt_GJR = Uni_Skewt_GJR_GARCH_VaR,
                       skewt_NGARCH = Uni_Skewt_NGARCH_VaR,
                       normal_DCC_GARCH = Multi_DCC_GARCH_VaR,
-                      Multi_Fortin_Normal3_VaR = Multi_Fortin_Normal3_VaR,
+                      Multi_Fortin_Normal_VaR = Multi_Fortin_Normal_VaR,
                       Multi_Fortin_t_VaR = Multi_Fortin_t_VaR)
 exceedances_table(test_VaR_list)$table_99
 exceedances_table(test_VaR_list)$table_95
