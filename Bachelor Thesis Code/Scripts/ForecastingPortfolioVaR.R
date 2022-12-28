@@ -7,7 +7,7 @@ if (!require(rugarch)) install.packages("rugarch")
 if (!require(rmgarch)) install.packages("rmgarch")
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(xts)) install.packages("xts")
-
+if (!require(MSGARCH)) install.packages("MSGARCH")
 
 
 #--------------------------------------------------------#
@@ -134,9 +134,34 @@ head(uni_skewt_NGARCH_VaR)
 write.csv(uni_skewt_NGARCH_VaR, "Data\\VaR\\Uni_Skewt_NGARCH.csv", row.names = FALSE)
 
 
+#--------------------------------------#
+########### Mix-Normal GARCH ###########
+#--------------------------------------#
+window_size <- 1000
+n_windows <- dim(portfolio_plret_df)[1]-window_size
 
+ms2garch_VaR <- matrix(0L, nrow = n_windows, ncol = 2)
+ms2garch_ES <- matrix(0L, nrow = n_windows, ncol = 2)
+
+
+ms2garch_spec <- CreateSpec(variance.spec = list(model = "sGARCH"),
+           distribution.spec = list(distribution = "norm"),
+           switch.spec = list(K = 2))
+
+for (i in 1:n_windows){
+  fit_ml <- FitML(spec = ms2garch_spec, data = portfolio_plret_ts[i:(1000+i-1)])
+  ms2garch_VaR[i,] <- Risk(fit_ml, alpha = c(0.01, 0.05), nahead = 1)$VaR
+  ms2garch_ES[i,] <- Risk(fit_ml, alpha = c(0.01, 0.05), nahead = 1)$ES
+  message("completed: ", i, " of ", n_windows)
+}
+ms2garch_VaR_df <- data.frame(Date = portfolio_plret_df[-c(1:1000),1],
+                           alpha_1perc = ms2garch_VaR[,1], alpha_5perc = ms2garch_VaR[,2])
+ms2garch_VaR_df %>% head()
+rugarch::VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], ms2garch_VaR[,1])
+ms2garch_ES
 ###################### Don't forget univariate mix normal garch
 ######################function for dataframe and head()
+write.csv(ms2garch_VaR_df, "Data\\VaR\\MS2GARCH.csv", row.names = FALSE)
 
 
 #--------------------------------------------------------#

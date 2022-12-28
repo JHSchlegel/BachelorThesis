@@ -89,8 +89,8 @@ VaR_exceed_plot <- function(dataframe, VaR_in_col_nr, pf_plrets, alpha, modelnam
                            "\n2010:", exceedances_per_year$n[7], "\n2011:", exceedances_per_year$n[8]))
 }
 
-VaR_exceed_plot(Uni_Normal_GARCH_VaR, 3, portfolio_plret_df, alpha = 95, "Uni_Normal_GARCH")
-VaR_exceed_plot(Uni_Normal_GARCH_VaR, 2, portfolio_plret_df, alpha = 99, "Uni_Normal_GARCH")
+VaR_exceed_plot(Uni_Normal_GARCH_VaR, 3, portfolio_plret_df, alpha = 5, "Uni_Normal_GARCH")
+VaR_exceed_plot(Uni_Normal_GARCH_VaR, 2, portfolio_plret_df, alpha = 1, "Uni_Normal_GARCH")
 
 #-----------------------------------------------------------------------------#
 ###### Tests for Independence and Conditional and Unconditional Coverage ######
