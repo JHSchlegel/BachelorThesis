@@ -326,8 +326,20 @@ acf(stocks_plret_df[,-1], ci.col = "black") # little to no auto-& crosscorrelati
 acf(abs(stocks_plret_df[,-1]), ci.col = "black") # high auto-& crosscorrelation between absolute returns
 
 
+#---------------------------------#
+########### QQ-Plots ##############
+#---------------------------------#
+if (!require(car)) install.packages("car")
+qqPlot(portfolio_plret_df[,2], xlab = "Theoretical Normal Quantils",
+       ylab = "Sample Quantiles", main = "Portfolio")
 
+par(mfrow = c(4,3))
+for (i in 1:10){
+  qqPlot(stocks_plret_df[,i+1], xlab = "Theoretical Normal Quantils",
+         ylab = "Sample Quantiles", main = colnames(stocks_plret_df)[i+1])
+} 
 
-
-
-
+# All qqplots show clear non-normal behaviour due to their fat tails
+# combined with the very high Jarque-Bera test statistics it is apparent
+# that the returns are not univariate normal distributed
+  
