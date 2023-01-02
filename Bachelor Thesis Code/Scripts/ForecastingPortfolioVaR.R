@@ -159,9 +159,9 @@ ms2garch_VaR_df <- data.frame(Date = portfolio_plret_df[-c(1:1000),1],
 ms2garch_VaR_df %>% head()
 rugarch::VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], ms2garch_VaR[,1])
 ms2garch_ES
-###################### Don't forget univariate mix normal garch
-######################function for dataframe and head()
+
 write.csv(ms2garch_VaR_df, "Data\\VaR\\MS2GARCH.csv", row.names = FALSE)
+
 
 
 #--------------------------------------------------------#
