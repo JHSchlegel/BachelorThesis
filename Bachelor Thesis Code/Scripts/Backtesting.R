@@ -35,6 +35,7 @@ Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
 
 Multi_Fortin_Normal_VaR <- read.csv("./Data/VaR/Multi_cop_norm_VaR.csv", header = TRUE)
 
+
 Multi_Fortin_t_VaR <- read.csv("./Data/VaR/Multi_cop_t_VaR.csv", header = TRUE)
 #--------------------------------------------------#
 ########### VaR Exceedence Plot Function ###########

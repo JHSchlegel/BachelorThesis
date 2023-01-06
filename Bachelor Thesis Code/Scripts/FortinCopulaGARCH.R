@@ -2,24 +2,6 @@
 ############################### Copula GARCH ###############################
 #==========================================================================#
 
-#TODO: 1) OLS regression
-
-#TODO: 2) bootstrap OLS residuals
-
-#TODO: 3) estimate distribution F of factor returns via Copula GARCH
-
-#TODO: 4) simulate rt from F& errort from Fe
-
-#TODO: 5) calculate stock returns w/FFC
-
-#TODO:6) calculate portfolio return
-
-#TODO: VaR_t^p=-percentile(rpf,100p)
-
-# TODO: DCC which distribution? how to backtransform? 
-
-# TODO: set.seed(i) for resampling
-
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(rugarch)) install.packages("rugarch") # for univariate GARCH models
 # rugarch allows for parallel programming using parallel package
@@ -371,6 +353,7 @@ for (i in 1:n_window){
   cop_n <- fitCopula(normalCopula(dim = 4), data = pobs_res)
   
   # simulation:
+  set.seed(i)
   cop_sim <- rCopula(N_sim, cop_n@copula)
   cop_sim_df <- data.frame(cop_sim)
   
@@ -446,6 +429,7 @@ for (i in 1:n_window){
   cop_t <- fitCopula(tCopula(dim = 4, df.fixed = TRUE), data = pobs_res)
   
   # simulation:
+  set.seed(i)
   cop_sim <- rCopula(N_sim, cop_t@copula)
   cop_sim_df <- data.frame(cop_sim)
   
@@ -546,81 +530,4 @@ length(portfolio_plret_ts[-c(1:1000)])
 
 
 
-
-N_sim <- 200000
-n_ahead <- 1
-meanModel <- list(armaOrder = c(0, 0))
-varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
-uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd")
-mspec <- multispec(replicate(4, uspec))
-dcc_spec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
-
-
-n_window <- length(FFCFactors_df[,1])-1000
-
-VaR_cop_norm <- matrix(0L, nrow = n_window, ncol = 2)
-
-for (i in 1:n_window){
-  cl <- makePSOCKcluster(numcores)
-  garch_dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
-  garch_dcc_fcst <- dccforecast(garch_dcc_fit, cluster = cl)
-  stopCluster(cl)
-  
-  dcc_fcst_cov <- matrix(garch_dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(garch_dcc_fcst)  
-  dcc_fcst_cor <- cov2cor(dcc_fcst_cov)
-  dcc_fcst_mu <- matrix(garch_dcc_fcst@mforecast$mu, nrow = 1)
-  garch_dcc_res <- garch_dcc_fit@mfit$stdresid
-  res1 <- garch_dcc_res[,1]
-  res2 <- garch_dcc_res[,2]
-  res3 <- garch_dcc_res[,3]
-  res4 <- garch_dcc_res[,4]
-  pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
-  # par(mfrow = c(2,2))
-  # for (i in 1:4)plot(garch_dcc_res[,i], type = "l")
-  cop_n <- fitCopula(normalCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], dispstr = "un"), data = pobs_res)
-  
-  # simulation:
-  cop_sim <- rCopula(N_sim, cop_n@copula)
-  cop_sim_df <- data.frame(cop_sim)
-  
-  res_sim <- cbind(qnorm(cop_sim[,1]), qnorm(cop_sim[,2]), qnorm(cop_sim[,3]), qnorm(cop_sim[,4]))
-  res_sim_df <- as.matrix(res_sim)
-  #head(res_sim)
-  # par(mfrow = c(2,2))
-  # for (i in 1:4) plot(res_sim[1:100,i], type = "l")
-  # for qt: df = length(resx)-1
-  
-  
-  # use Chol if we want X'*X=A or X*X'=A; sqrtm if we want X*X = A
-  # returns are X_t = mu_t+sigma_t*epsilon_t
-  percentage_logret <- matrix(0L, nrow = N_sim, ncol=4)
-  #sqrt_h <- sqrtm(dcc_fcst_cov)
-  #sqrt_h
-  chol_h <- chol(dcc_fcst_cov)
-  #percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(sqrt_h%*%t(res_sim))
-  percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
-  
-  # hist(logret[,1], breaks = 50)
-  # dim(logret)
-  
-  # TODO: cholesky vs sqrt.m
-  # cholesky smaller VaR than sqrt.m
-  
-  #### TODO: insert time for RF
-  
-  set.seed(i)
-  bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
-  error_vec_resampled <- error_mat[bootind,] 
-  
-  sim_rets <- columnwise_sum_cpp(rep(FFCFactors_mat[1000+i-1,1], 2e5), 
-                                 percentage_logret, coefs_mat, error_vec_resampled, 2e5)
-  # calculate portfolio log returns for equally weighted portfolio
-  sim_plrets <- rowMeans(sim_rets)
-  
-  VaR_cop_norm[i,] <- quantile(sim_plrets, c(0.01, 0.05))
-  message("completed: ", i, " of ", n_window)
-  message(VaR_cop_norm[i,])
-}
-VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
-write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR_EXPERI<EMNNT.csv", row.names = FALSE)
 
