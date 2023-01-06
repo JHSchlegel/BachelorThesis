@@ -443,6 +443,8 @@ for (i in 1:n_window){
   pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
   # par(mfrow = c(2,2))
   # for (i in 1:4)plot(garch_dcc_res[,i], type = "l")
+  
+  # df.fixed = TRUE so that degrees of freedom are estimated
   cop_t <- fitCopula(tCopula(dim = 4, df.fixed = TRUE), data = pobs_res)
   
   # simulation:
@@ -562,51 +564,70 @@ VaR_cop_norm <- matrix(0L, nrow = n_window, ncol = 2)
 
 for (i in 1:n_window){
   cl <- makePSOCKcluster(numcores)
-  garch_dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
-  garch_dcc_fcst <- dccforecast(garch_dcc_fit, cluster = cl)
+  dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
+  dcc_fcst <- dccforecast(dcc_fit, cluster = cl)
   stopCluster(cl)
   
-  dcc_fcst_cov <- matrix(garch_dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(garch_dcc_fcst)  
+  ## Extract standardized residuals
+  garch_dcc_res <- dcc_fit@mfit$stdresid
+  
+  
+  ## Extract distribution of marginals (will be used later on for quantile transformation)
+  marginal_dist <- dcc_fit@model$umodel$modeldesc$distribution
+  for (k in 1:4){
+    # get skewness parameter and store as skew_k
+    skew <- paste("skew", k, sep = "_")
+    assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
+                        dcc_fit@model$mpars["skew", k], 
+                        0))
+    
+    # get shape parameter and store as shape_k
+    shape <- paste("shape", k, sep = "_")
+    assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
+                        dcc_fit@model$mpars["shape", k], 
+                        0))
+    if (dcc_fit@model$umodel$modelinc["ghlambda", k]>0){
+      stop("ghlambda not zero")
+    }
+  }
+  
+  
+  
+  ## Extract forecasted cov matrix and mu
+  dcc_fcst_cov <- matrix(dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(dcc_fcst)  
   dcc_fcst_cor <- cov2cor(dcc_fcst_cov)
-  dcc_fcst_mu <- matrix(garch_dcc_fcst@mforecast$mu, nrow = 1)
-  garch_dcc_res <- garch_dcc_fit@mfit$stdresid
-  res1 <- garch_dcc_res[,1]
-  res2 <- garch_dcc_res[,2]
-  res3 <- garch_dcc_res[,3]
-  res4 <- garch_dcc_res[,4]
+  dcc_fcst_mu <- matrix(dcc_fcst@mforecast$mu, nrow = 1)
+  
+  ## Create pseudoobservations from standardized residuals that lie within unit cube
   pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
-  # par(mfrow = c(2,2))
-  # for (i in 1:4)plot(garch_dcc_res[,i], type = "l")
-  cop_n <- fitCopula(normalCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], dispstr = "un"), data = pobs_res)
+
   
-  # simulation:
+  ## Fit copula
+  cop_n <- fitCopula(normalCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], dispstr = "un"), 
+                     data = pobs_res)
+  
+  ## simulation:
+  set.seed(i)
   cop_sim <- rCopula(N_sim, cop_n@copula)
-  cop_sim_df <- data.frame(cop_sim)
-  
-  res_sim <- cbind(qnorm(cop_sim[,1]), qnorm(cop_sim[,2]), qnorm(cop_sim[,3]), qnorm(cop_sim[,4]))
-  res_sim_df <- as.matrix(res_sim)
-  #head(res_sim)
-  # par(mfrow = c(2,2))
-  # for (i in 1:4) plot(res_sim[1:100,i], type = "l")
-  # for qt: df = length(resx)-1
   
   
-  # use Chol if we want X'*X=A or X*X'=A; sqrtm if we want X*X = A
+  ## Quantile transform
+  res_sim <- cbind(rugarch::qdist(distribution = marginal_dist[1], cop_sim[,1], 
+                                  mu = 0, sigma = 1, skew = skew_1, shape = shape_1), 
+                   rugarch::qdist(distribution = marginal_dist[2], cop_sim[,2], 
+                                  mu = 0, sigma = 1, skew = skew_2, shape = shape_2), 
+                   rugarch::qdist(distribution = marginal_dist[3], cop_sim[,3], 
+                                  mu = 0, sigma = 1, skew = skew_3, shape = shape_3), 
+                   rugarch::qdist(distribution = marginal_dist[4], cop_sim[,4], 
+                                  mu = 0, sigma = 1, skew = skew_4, shape = shape_4)
+  )
+  
+  
   # returns are X_t = mu_t+sigma_t*epsilon_t
+  # where sigma_t is calculated using cholesky decomposition of forecasted sigma matrix
   percentage_logret <- matrix(0L, nrow = N_sim, ncol=4)
-  #sqrt_h <- sqrtm(dcc_fcst_cov)
-  #sqrt_h
   chol_h <- chol(dcc_fcst_cov)
-  #percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(sqrt_h%*%t(res_sim))
   percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
-  
-  # hist(logret[,1], breaks = 50)
-  # dim(logret)
-  
-  # TODO: cholesky vs sqrt.m
-  # cholesky smaller VaR than sqrt.m
-  
-  #### TODO: insert time for RF
   
   set.seed(i)
   bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
@@ -622,5 +643,110 @@ for (i in 1:n_window){
   message(VaR_cop_norm[i,])
 }
 VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
-write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR_EXPERI<EMNNT.csv", row.names = FALSE)
+write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR_EXPERIMENT_QDIST_DYN.csv", row.names = FALSE)
+
+
+
+
+
+
+
+N_sim <- 200000
+n_ahead <- 1
+meanModel <- list(armaOrder = c(0, 0))
+varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
+uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd")
+mspec <- multispec(replicate(4, uspec))
+dcc_spec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
+
+
+n_window <- length(FFCFactors_df[,1])-1000
+
+VaR_cop_norm <- matrix(0L, nrow = n_window, ncol = 2)
+
+for (i in 1:n_window){
+  cl <- makePSOCKcluster(numcores)
+  dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
+  dcc_fcst <- dccforecast(dcc_fit, cluster = cl)
+  stopCluster(cl)
+  
+  ## Extract standardized residuals
+  garch_dcc_res <- dcc_fit@mfit$stdresid
+  
+  
+  ## Extract distribution of marginals (will be used later on for quantile transformation)
+  marginal_dist <- dcc_fit@model$umodel$modeldesc$distribution
+  u_res <- matrix(0L, nrow = dim(garch_dcc_res)[1], ncol = 4)
+  for (k in 1:4){
+    # get skewness parameter and store as skew_k
+    skew <- paste("skew", k, sep = "_")
+    assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
+                        dcc_fit@model$mpars["skew", k], 
+                        0))
+    
+    # get shape parameter and store as shape_k
+    shape <- paste("shape", k, sep = "_")
+    assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
+                         dcc_fit@model$mpars["shape", k], 
+                         0))
+    u_res[,i] <- pdist(distribution = marginal_dist[k], 
+                       q  = garch_dcc_res[,k], 
+                       mu = 0,
+                       sigma = 1,
+                       shape = shape,
+                       skew = skew)
+  }
+  
+  
+  
+  ## Extract forecasted cov matrix and mu
+  dcc_fcst_cov <- matrix(dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(dcc_fcst)  
+  dcc_fcst_cor <- cov2cor(dcc_fcst_cov)
+  dcc_fcst_mu <- matrix(dcc_fcst@mforecast$mu, nrow = 1)
+  
+  
+  
+  ## Fit copula
+  cop_n <- fitCopula(normalCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], dispstr = "un"), 
+                     data = u_res)
+  
+  ## simulation:
+  set.seed(i)
+  cop_sim <- rCopula(N_sim, cop_n@copula)
+  
+  
+  ## Quantile transform
+  res_sim <- cbind(rugarch::qdist(distribution = marginal_dist[1], cop_sim[,1], 
+                                  mu = 0, sigma = 1, skew = skew_1, shape = shape_1), 
+                   rugarch::qdist(distribution = marginal_dist[2], cop_sim[,2], 
+                                  mu = 0, sigma = 1, skew = skew_2, shape = shape_2), 
+                   rugarch::qdist(distribution = marginal_dist[3], cop_sim[,3], 
+                                  mu = 0, sigma = 1, skew = skew_3, shape = shape_3), 
+                   rugarch::qdist(distribution = marginal_dist[4], cop_sim[,4], 
+                                  mu = 0, sigma = 1, skew = skew_4, shape = shape_4)
+  )
+  
+  
+  # returns are X_t = mu_t+sigma_t*epsilon_t
+  # where sigma_t is calculated using cholesky decomposition of forecasted sigma matrix
+  percentage_logret <- matrix(0L, nrow = N_sim, ncol=4)
+  chol_h <- chol(dcc_fcst_cov)
+  percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
+  
+  set.seed(i)
+  bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
+  error_vec_resampled <- error_mat[bootind,] 
+  
+  sim_rets <- columnwise_sum_cpp(rep(FFCFactors_mat[1000+i-1,1], 2e5), 
+                                 percentage_logret, coefs_mat, error_vec_resampled, 2e5)
+  # calculate portfolio log returns for equally weighted portfolio
+  sim_plrets <- rowMeans(sim_rets)
+  
+  VaR_cop_norm[i,] <- quantile(sim_plrets, c(0.01, 0.05))
+  message("completed: ", i, " of ", n_window)
+  message(VaR_cop_norm[i,])
+}
+
+VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
+write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR_EXPERIMENT_PDISTQDIST_DYN.csv", row.names = FALSE)
 
