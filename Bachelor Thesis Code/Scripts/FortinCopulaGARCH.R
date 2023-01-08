@@ -680,11 +680,14 @@ write.csv(VaR_cop_norm_df,
 
 
 
+VaR_cop_t_df <- fortin_cgarch_VaR(dynamic = FALSE, copula_dist = "norm")
+write.csv(VaR_cop_t_df, 
+          "Data\\VaR\\Fortin_cop_norm.csv", row.names = FALSE)
 
 
-VaR_cop_norm_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, copula_dist = "norm")
-write.csv(VaR_cop_norm_df, 
-          "Data\\VaR\\Fortin_cop_norm_dyn.csv", row.names = FALSE)
+VaR_cop_t_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, copula_dist = "norm")
+write.csv(VaR_cop_t_df, 
+          "Data\\VaR\\Fortin_cop_t_dyn.csv", row.names = FALSE)
 
 
 
@@ -902,7 +905,7 @@ write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR_EXPERIMENT_QDIST_DYN_T
 
 
 
-
+numcores <- detectCores() - 1
 
 
 N_sim <- 200000
@@ -918,7 +921,7 @@ n_window <- length(FFCFactors_df[,1])-1000
 
 VaR_cop_norm <- matrix(0L, nrow = n_window, ncol = 2)
 
-for (i in 1:n_window){
+for (i in 1:n_window){ 
   cl <- makePSOCKcluster(numcores)
   dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
   dcc_fcst <- dccforecast(dcc_fit, cluster = cl)
@@ -933,17 +936,19 @@ for (i in 1:n_window){
   u_res <- matrix(0L, nrow = dim(garch_dcc_res)[1], ncol = 4)
   for (k in 1:4){
     # get skewness parameter and store as skew_k
-    skew <- paste("skew", k, sep = "_")
-    assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
-                        dcc_fit@model$mpars["skew", k], 
-                        0))
+    skew <-  ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
+                    dcc_fit@model$mpars["skew", k], 
+                    0)
+    skew_k <- paste("skew", k, sep = "_")
+    assign(skew_k, skew)
     
     # get shape parameter and store as shape_k
-    shape <- paste("shape", k, sep = "_")
-    assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
-                         dcc_fit@model$mpars["shape", k], 
-                         0))
-    u_res[,i] <- pdist(distribution = marginal_dist[k], 
+    shape <- ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
+                    dcc_fit@model$mpars["shape", k], 
+                    0)
+    shape_k <- paste("shape", k, sep = "_")
+    assign(shape_k, shape)
+    u_res[,k] <- rugarch::pdist(distribution = marginal_dist[k], 
                        q  = garch_dcc_res[,k], 
                        mu = 0,
                        sigma = 1,
