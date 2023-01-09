@@ -21,7 +21,7 @@ sourceCpp("Scripts/CppFunctions.cpp")
 FFCFactors_df <- read.csv("./Data/FFCFactors.csv", header = TRUE)
 stocks_plret_df <- read.csv("./Data/StockPlrets.csv", header = TRUE)
 portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date, 
-                                 Portfolio = apply(stocks_plret_df[,-1], 1, mean))
+                              Portfolio = apply(stocks_plret_df[,-1], 1, mean))
 
 ## Convert to Matrix
 # Matrices only include numeric values; hence especially indexing by row much 
@@ -40,10 +40,13 @@ dim(joined_df)
 joined_df$Date
 
 ## Convert to time series
-if (!require(xts)) install.packages("xts") # allows handling of multivariate time series
-Factors_ts <- xts(FFCFactors_df[,-c(1,2)], order.by = as.Date(FFCFactors_df$Date))
-stocks_plret_ts <- xts(stocks_plret_df[,-1], order.by = as.Date(stocks_plret_df$Date))
-portfolio_plret_ts <- xts(portfolio_plret_df[,-1], order.by = as.Date(portfolio_plret_df$Date))
+if (!require(xts)) install.packages("xts") # handling of multivariate time series
+Factors_ts <- xts(FFCFactors_df[,-c(1,2)], 
+                  order.by = as.Date(FFCFactors_df$Date))
+stocks_plret_ts <- xts(stocks_plret_df[,-1], 
+                       order.by = as.Date(stocks_plret_df$Date))
+portfolio_plret_ts <- xts(portfolio_plret_df[,-1], 
+                          order.by = as.Date(portfolio_plret_df$Date))
 
 
 #---------------------------------------#
@@ -52,6 +55,8 @@ portfolio_plret_ts <- xts(portfolio_plret_df[,-1], order.by = as.Date(portfolio_
 
 # Have to calculate simulated portfolio returns from simulated factor returns
 # check which way it is the fastest using microbenchmark package
+# for completeness sake, I included all the benchmarking I did even though
+# some parts might not be directly relevant for the final function I wrote
 
 if (!require(microbenchmark)) install.packages("microbenchmark")
 
@@ -63,7 +68,7 @@ mbm_idx <- microbenchmark(
   times = 1000
 )
 mbm_idx
-plot(mbm_idx)
+mbm_idx %>% autoplot()
 # xts and matrix way faster when trying to access subset of rows
 
 cppFunction("double DotProdCpp(NumericVector x, NumericVector y){
@@ -86,7 +91,7 @@ mbm_dot_small <- microbenchmark(
   times = 100
 )
 mbm_dot_small
-plot(mbm_dot_small)
+mbm_dot_small %>% autoplot()
 # Use %*% for dot product of simulated factor returns and OLS factor coefs
 
 
@@ -99,7 +104,7 @@ mbm_dot_large <- microbenchmark(
   times = 100
 )
 mbm_dot_large
-plot(mbm_dot_large)
+mbm_dot_large %>% autoplot()
 # use C++ function to calculate dot product of large vectors
 
 numcores <- detectCores()-1
@@ -108,28 +113,30 @@ parapply_test <- function(cl, test_rets, test_coefs){
   cl <- makePSOCKcluster(numcores)
   clusterExport(cl, list("test_rets", "test_coefs"))
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- parApply(cl, test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+  for (i in 1:10) sim_test[,i] <- parApply(cl, test_rets, 1, 
+                function(x) test_coefs[i,1] + test_coefs[i,-1]%*%x)
   stopCluster(cl)
 }
 
 
-apply_test <- function(constant, test_rets, test_coefs){
+apply_test <- function(test_rets, test_coefs){
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- constant + apply(test_rets, 1, function(x)test_coefs[i,1]+test_coefs[i,-1]%*%x)
+  for (i in 1:10) sim_test[,i] <- apply(test_rets, 1,
+                              function(x)test_coefs[i,1] + test_coefs[i,-1]%*%x)
   sim_test
 }
 
-columnwise_sum <- function(constant, test_rets, test_coefs){
+columnwise_sum <- function(test_rets, test_coefs){
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- constant +test_coefs[i,1]+test_coefs[i,2]*test_rets[,1]+
-      test_coefs[i,3]*test_rets[,2]+test_coefs[i,4]*test_rets[,3]+test_coefs[i,5]*test_rets[,4]
+  for (i in 1:10) sim_test[,i] <- test_coefs[i,1] + 
+      test_coefs[i,2] * test_rets[,1] + test_coefs[i,3] * test_rets[,2]  + 
+      test_coefs[i,4] * test_rets[,3] + test_coefs[i,5] * test_rets[,4]
   sim_test
 }
 
 
 
 
-a <- 3
 test_rets <- matrix(rnorm(4*2e5), nrow = 2e5, ncol = 4)
 test_errors <- matrix(rnorm(10*2e5), nrow = 2e5, ncol = 10)
 test_coefs <- matrix(rnorm(5*10), nrow = 10, ncol = 5)
@@ -143,34 +150,30 @@ mbm_apply <- microbenchmark(
   times = 20
 )
 mbm_apply
-plot(mbm_apply)
-# apply faster than parapply in this case, probably due to communication time between threads when parallelizingmbm
+mbm_apply %>% autoplot()
+# apply faster than parapply in this case, probably due to communication time
+# between threads when parallelizing
 # columnwise summing almost a hundred times faster
 
 
 in_loop <- function(constant, test_rets, test_coefs, test_errors){
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- constant+ test_coefs[i,1]+test_coefs[i,2]*test_rets[,1]+
-      test_coefs[i,3]*test_rets[,2]+test_coefs[i,4]*test_rets[,3]+test_coefs[i,5]*test_rets[,4]+test_errors[,i]
+  for (i in 1:10) sim_test[,i] <- constant + test_coefs[i,1] +
+      test_coefs[i,2] * test_rets[,1] +
+      test_coefs[i,3] * test_rets[,2] + test_coefs[i,4]*test_rets[,3] + 
+      test_coefs[i,5] * test_rets[,4] + test_errors[,i]
   sim_test
 }
 out_loop <- function(constant, test_rets, test_coefs, test_errors){
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- constant+ test_coefs[i,1]+test_coefs[i,2]*test_rets[,1]+
-      test_coefs[i,3]*test_rets[,2]+test_coefs[i,4]*test_rets[,3]+test_coefs[i,5]*test_rets[,4]
-  sim_test+test_errors
+  for (i in 1:10) sim_test[,i] <- constant + test_coefs[i,1] + 
+      test_coefs[i,2] * test_rets[,1] + test_coefs[i,3] * test_rets[,2] + 
+      test_coefs[i,4] * test_rets[,3] + test_coefs[i,5] * test_rets[,4]
+  sim_test + test_errors
 }
 
 
-cppFunction("NumericMatrix columnwise_sum_cpp(NumericVector constant, NumericMatrix rets, NumericMatrix coefs, NumericMatrix sim_errors, int N_Sim){
-  NumericMatrix sim_ret(N_Sim, 10);
-  int n = 10;
-  NumericVector unit(N_Sim, 1.0);
-  for (int i=0; i<n; i++){
-    sim_ret(_,i) = constant + coefs(i,0)*unit+ coefs(i,1)*rets(_,0)+coefs(i,2)*rets(_,1)+coefs(i,3)*rets(_,2)+coefs(i,4)*rets(_,3)+sim_errors(_,i);
-  }
-  return sim_ret;
-}")
+
 
 x <- columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, test_errors, 2e5)
 y <- in_loop(a, test_rets, test_coefs, test_errors)
@@ -186,11 +189,13 @@ mbm_loop <- microbenchmark(
   times = 50
 )
 mbm_loop
-plot(mbm_loop)
+mbm_loop %>% autoplot()
 # outside of loop is faster than inside the loop
-# c++ 7x faster than columnwise implementation w/ summation of error matrix outside the loop
+# c++ 7x faster than columnwise implementation w/ summation of error matrix 
+# outside the loop
 
-sim_test <- columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, test_errors, 2e5)
+sim_test <- columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, 
+                               test_errors, 2e5)
 
 cl <- makePSOCKcluster(numcores)
 clusterExport(cl, list("sim_test"))
@@ -202,19 +207,24 @@ mbm_pf <- microbenchmark(
 )
 stopCluster(cl)
 mbm_pf
-plot(mbm_pf)
-# rowMeans the fastest; when testing it was even faster than a quick C++ implementation I did
+mbm_pf %>% autoplot()
+# rowMeans the fastest; when testing it was even faster than a quick C++ 
+# implementation I made
 
-# Hence, for calculating the returns of the stocks, the C++ function columnwise_sum_cpp will be used
+# Hence, for calculating the returns of the stocks, the C++ function 
+# columnwise_sum_cpp will be used
 # To get the portfolio returns from the stock returns, rowMeans will be used
+
+
 
 #-----------------------------------------------------------------------------#
 ########### Coefficients and Residuals of Carhart Four-Factor Model ###########
 #-----------------------------------------------------------------------------#
+
 if (!require(tseries)) install.packages(tseries) # for JB test
 n_dates <- dim(FFCFactors_df)[1]
-coefs_mat <- matrix(0L, nrow = 10, ncol = 5) # empty matrix to store coefficients
-error_mat <- matrix(0L, nrow = n_dates, ncol = 10) # empty matrix to store residuals
+coefs_mat <- matrix(0L, nrow = 10, ncol = 5) # empty matrix for coefficients
+error_mat <- matrix(0L, nrow = n_dates, ncol = 10) # empty matrix for residuals
 adj_R2 <- numeric(10)
 JB <- numeric(10)
 for (i in 1:10){
@@ -232,9 +242,12 @@ for (i in 1:10){
 # scale location plots show heteroscedastic behaviour
 # some points with high leverage but still w/in 0.5 boundary for Cook's distance
 
-coefs_df <- data.frame(coefs_mat); error_df <- data.frame(Date = joined_df$Date, error_mat)
-rownames(coefs_df) <- c("KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK")
-colnames(error_df) <- c("Date", "KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK")
+coefs_df <- data.frame(coefs_mat); error_df <- data.frame(Date = joined_df$Date,
+                                                          error_mat)
+rownames(coefs_df) <- c("KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", 
+                        "BA", "MRK")
+colnames(error_df) <- c("Date", "KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", 
+                        "CAT", "BA", "MRK")
 colnames(coefs_df) <- c("Intercept", "Market", "Size", "Value", "Momentum")
 head(coefs_df); head(error_df)
 
@@ -245,14 +258,16 @@ OLS_table
 error_df[,-1] %>% 
   gather() %>% 
   ggplot(aes(value)) +
-  geom_histogram(aes(y = ..density..), bins = 80, fill = "grey69", color = "white")+
+  geom_histogram(aes(y = ..density..), bins = 80, fill = "grey69", 
+                 color = "white")+
   geom_density()+
   facet_wrap(~key, scale = "free_x")
 # very long left tail; unimodal w/ mode around zero
 
 apply(error_mat, 2, min)
 apply(error_mat, 2, max)
-# minimal values are a lot smaller in absolute value than maximal values for all shares
+# minimal values are a lot smaller in absolute value than maximal values for 
+# all shares
 # can observe that the bootstrapped error distributions have a long left tail
 
 if (!require(pheatmap)) install.packages("pheatmap")
@@ -286,7 +301,8 @@ head(error_vec_resampled)
 error_vec_resampled %>%
   gather() %>% 
   ggplot(aes(value)) +
-  geom_histogram(aes(y = ..density..), bins = 80, fill = "grey69", color = "white")+
+  geom_histogram(aes(y = ..density..), bins = 80, fill = "grey69", 
+                 color = "white")+
   geom_density()+
   facet_wrap(~key, scale = "free_x")
 # distribution very similar to original just slightly less smooth 
@@ -310,7 +326,8 @@ error_df %>%
 #-------------------------------------------------------------------------------#
 
 # Each row in error_vec_resampled is one draw of a vector of error terms
-# to make sure dependencies are kept, all elements in a row are from the same time t
+# to make sure dependencies are kept, all elements in a row are from the same
+# time t
 set.seed(42)
 N_boot <- 200000
 bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
@@ -318,222 +335,16 @@ error_vec_resampled <- error_mat[bootind,] # now without date
 head(error_vec_resampled)
 
 
-numcores <- detectCores()-1 # all cores available except one
 
-N_sim <- 200000
-n_ahead <- 1
-meanModel <- list(armaOrder = c(0, 0))
-varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
-uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd")
-mspec <- multispec(replicate(4, uspec))
-dcc_spec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
-
-
-n_window <- length(FFCFactors_df[,1])-1000
-
-VaR_cop_norm <- matrix(0L, nrow = n_window, ncol = 2)
-
-for (i in 1:n_window){
-  cl <- makePSOCKcluster(numcores)
-  garch_dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
-  garch_dcc_fcst <- dccforecast(garch_dcc_fit, cluster = cl)
-  stopCluster(cl)
-  
-  dcc_fcst_cov <- matrix(garch_dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(garch_dcc_fcst)  
-  dcc_fcst_mu <- matrix(garch_dcc_fcst@mforecast$mu, nrow = 1)
-  garch_dcc_res <- garch_dcc_fit@mfit$stdresid
-  res1 <- garch_dcc_res[,1]
-  res2 <- garch_dcc_res[,2]
-  res3 <- garch_dcc_res[,3]
-  res4 <- garch_dcc_res[,4]
-  pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
-  # par(mfrow = c(2,2))
-  # for (i in 1:4)plot(garch_dcc_res[,i], type = "l")
-  cop_n <- fitCopula(normalCopula(dim = 4), data = pobs_res)
-  
-  # simulation:
-  set.seed(i)
-  cop_sim <- rCopula(N_sim, cop_n@copula)
-  cop_sim_df <- data.frame(cop_sim)
-  
-  res_sim <- cbind(qnorm(cop_sim[,1]), qnorm(cop_sim[,2]), qnorm(cop_sim[,3]), qnorm(cop_sim[,4]))
-  res_sim_df <- as.matrix(res_sim)
-  #head(res_sim)
-  # par(mfrow = c(2,2))
-  # for (i in 1:4) plot(res_sim[1:100,i], type = "l")
-  # for qt: df = length(resx)-1
-  
-  
-  # use Chol if we want X'*X=A or X*X'=A; sqrtm if we want X*X = A
-  # returns are X_t = mu_t+sigma_t*epsilon_t
-  percentage_logret <- matrix(0L, nrow = N_sim, ncol=4)
-  #sqrt_h <- sqrtm(dcc_fcst_cov)
-  #sqrt_h
-  chol_h <- chol(dcc_fcst_cov)
-  #percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(sqrt_h%*%t(res_sim))
-  percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
-  
-  # hist(logret[,1], breaks = 50)
-  # dim(logret)
-  
-  # TODO: cholesky vs sqrt.m
-  # cholesky smaller VaR than sqrt.m
-  
-  #### TODO: insert time for RF
-  
-  set.seed(i)
-  bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
-  error_vec_resampled <- error_mat[bootind,] 
-  
-  sim_rets <- columnwise_sum_cpp(rep(FFCFactors_mat[1000+i-1,1], 2e5), 
-                                 percentage_logret, coefs_mat, error_vec_resampled, 2e5)
-  # calculate portfolio log returns for equally weighted portfolio
-  sim_plrets <- rowMeans(sim_rets)
-  
-  VaR_cop_norm[i,] <- quantile(sim_plrets, c(0.01, 0.05))
-  message("completed: ", i, " of ", n_window)
-}
-VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
-write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR.csv", row.names = FALSE)
-
-VaRplot(0.05, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,2])
-VaRTest(0.05, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,2])
-
-VaRplot(0.01, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,1])
-VaRTest(0.01, portfolio_plret_ts[-c(1:1000)], VaR_cop_norm[,1])
-
-length(VaR_cop_norm)
-length(portfolio_plret_ts[-c(1:1000)])
-
-
-
-VaR_cop_t <- matrix(0L, nrow = n_window, ncol = 2)
-
-for (i in 1:n_window){
-  cl <- makePSOCKcluster(numcores)
-  garch_dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),], cluster = cl)
-  garch_dcc_fcst <- dccforecast(garch_dcc_fit, cluster = cl)
-  stopCluster(cl)
-  
-  dcc_fcst_cov <- matrix(garch_dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(garch_dcc_fcst)  
-  dcc_fcst_mu <- matrix(garch_dcc_fcst@mforecast$mu, nrow = 1)
-  garch_dcc_res <- garch_dcc_fit@mfit$stdresid
-  res1 <- garch_dcc_res[,1]
-  res2 <- garch_dcc_res[,2]
-  res3 <- garch_dcc_res[,3]
-  res4 <- garch_dcc_res[,4]
-  pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
-  # par(mfrow = c(2,2))
-  # for (i in 1:4)plot(garch_dcc_res[,i], type = "l")
-  
-  # df.fixed = TRUE so that degrees of freedom are estimated
-  cop_t <- fitCopula(tCopula(dim = 4, df.fixed = TRUE), data = pobs_res)
-  
-  # simulation:
-  set.seed(i)
-  cop_sim <- rCopula(N_sim, cop_t@copula)
-  cop_sim_df <- data.frame(cop_sim)
-  
-  res_sim <- cbind(qnorm(cop_sim[,1]), qnorm(cop_sim[,2]), qnorm(cop_sim[,3]), qnorm(cop_sim[,4]))
-  res_sim_df <- as.matrix(res_sim)
-  #head(res_sim)
-  # par(mfrow = c(2,2))
-  # for (i in 1:4) plot(res_sim[1:100,i], type = "l")
-  # for qt: df = length(resx)-1
-  
-  
-  # use Chol if we want X'*X=A or X*X'=A; sqrtm if we want X*X = A
-  # returns are X_t = mu_t+sigma_t*epsilon_t
-  percentage_logret <- matrix(0L, nrow = N_sim, ncol=4)
-  #sqrt_h <- sqrtm(dcc_fcst_cov)
-  #sqrt_h
-  chol_h <- chol(dcc_fcst_cov)
-  percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
-  #percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(sqrt_h%*%t(res_sim))
-  
-  # hist(logret[,1], breaks = 50)
-  # dim(logret)
-  
-  
-  set.seed(i)
-  bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
-  error_vec_resampled <- error_mat[bootind,] 
-  
-  sim_rets <- columnwise_sum_cpp(rep(FFCFactors_mat[1000+i-1,1], 2e5), 
-                                 percentage_logret, coefs_mat, error_vec_resampled, 2e5)
-  # calculate portfolio log returns for equally weighted portfolio
-  sim_plrets <- rowMeans(sim_rets)
-  
-  VaR_cop_t[i,] <- quantile(sim_plrets, c(0.01, 0.05))
-  message("completed: ", i, " of ", n_window)
-}
-VaR_cop_t_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_t[,1], alpha_0.05 = VaR_cop_t[,2])
-write.csv(VaR_cop_t_df, "Data\\VaR\\Multi_cop_t_VaR.csv", row.names = FALSE)
-
-
-VaRplot(0.05, portfolio_plret_ts[-c(1:1000)], VaR_cop_t[,2])
-VaRTest(0.05, portfolio_plret_ts[-c(1:1000)], VaR_cop_t[,2])
-
-VaRplot(0.01, portfolio_plret_ts[-c(1:1000)], VaR_cop_t[,1])
-VaRTest(0.01, portfolio_plret_ts[-c(1:1000)], VaR_cop_t[,1])
-
-length(VaR_cop_t)
-length(portfolio_plret_ts[-c(1:1000)])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#-------------------------------------------------------------#
+########### Copula GARCH as in Fortin et al. (2022) ###########
+#-------------------------------------------------------------#
 
 fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
   N_sim <- 200000 # nr. of random draws from copula
   n_ahead <- 1 # 1 step ahead forecast
   n_window <- length(FFCFactors_df[,1])-1000 # how many rolling windows
-  numcores <- detectCores()-1
+  numcores <- detectCores() - 1 # use all but 1 core
   
   copula_dist <- match.arg(copula_dist)
   
@@ -680,12 +491,12 @@ write.csv(VaR_cop_norm_df,
 
 
 
-VaR_cop_t_df <- fortin_cgarch_VaR(dynamic = FALSE, copula_dist = "norm")
+VaR_cop_t_df <- fortin_cgarch_VaR(dynamic = FALSE, copula_dist = "t")
 write.csv(VaR_cop_t_df, 
-          "Data\\VaR\\Fortin_cop_norm.csv", row.names = FALSE)
+          "Data\\VaR\\Fortin_cop_t.csv", row.names = FALSE)
 
 
-VaR_cop_t_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, copula_dist = "norm")
+VaR_cop_t_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, copula_dist = "t")
 write.csv(VaR_cop_t_df, 
           "Data\\VaR\\Fortin_cop_t_dyn.csv", row.names = FALSE)
 
@@ -700,313 +511,10 @@ write.csv(VaR_cop_t_df,
 
 
 
-N_sim <- 200000
-n_ahead <- 1
-meanModel <- list(armaOrder = c(0, 0))
-varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
-uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd")
-mspec <- multispec(replicate(4, uspec))
-dcc_spec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
-
-
-n_window <- length(FFCFactors_df[,1])-1000
-
-VaR_cop_norm <- matrix(0L, nrow = n_window, ncol = 2)
-
-for (i in 1:n_window){
-  cl <- makePSOCKcluster(numcores)
-  dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
-  dcc_fcst <- dccforecast(dcc_fit, cluster = cl)
-  stopCluster(cl)
-  
-  ## Extract standardized residuals
-  garch_dcc_res <- dcc_fit@mfit$stdresid
-  
-  
-  ## Extract distribution of marginals (will be used later on for quantile transformation)
-  marginal_dist <- dcc_fit@model$umodel$modeldesc$distribution
-  for (k in 1:4){
-    # get skewness parameter and store as skew_k
-    skew <- paste("skew", k, sep = "_")
-    assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
-                        dcc_fit@model$mpars["skew", k], 
-                        0))
-    
-    # get shape parameter and store as shape_k
-    shape <- paste("shape", k, sep = "_")
-    assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
-                        dcc_fit@model$mpars["shape", k], 
-                        0))
-    if (dcc_fit@model$umodel$modelinc["ghlambda", k]>0){
-      stop("ghlambda not zero")
-    }
-  }
-  
-  
-  
-  ## Extract forecasted cov matrix and mu
-  dcc_fcst_cov <- matrix(dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(dcc_fcst)  
-  dcc_fcst_cor <- cov2cor(dcc_fcst_cov)
-  dcc_fcst_mu <- matrix(dcc_fcst@mforecast$mu, nrow = 1)
-  
-  ## Create pseudoobservations from standardized residuals that lie within unit cube
-  pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
-
-  
-  ## Fit copula
-  cop_n <- fitCopula(normalCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], dispstr = "un"), 
-                     data = pobs_res)
-  
-  ## simulation:
-  set.seed(i)
-  cop_sim <- rCopula(N_sim, cop_n@copula)
-  
-  
-  ## Quantile transform
-  res_sim <- cbind(rugarch::qdist(distribution = marginal_dist[1], cop_sim[,1], 
-                                  mu = 0, sigma = 1, skew = skew_1, shape = shape_1), 
-                   rugarch::qdist(distribution = marginal_dist[2], cop_sim[,2], 
-                                  mu = 0, sigma = 1, skew = skew_2, shape = shape_2), 
-                   rugarch::qdist(distribution = marginal_dist[3], cop_sim[,3], 
-                                  mu = 0, sigma = 1, skew = skew_3, shape = shape_3), 
-                   rugarch::qdist(distribution = marginal_dist[4], cop_sim[,4], 
-                                  mu = 0, sigma = 1, skew = skew_4, shape = shape_4)
-  )
-  
-  
-  # returns are X_t = mu_t+sigma_t*epsilon_t
-  # where sigma_t is calculated using cholesky decomposition of forecasted sigma matrix
-  percentage_logret <- matrix(0L, nrow = N_sim, ncol=4)
-  chol_h <- chol(dcc_fcst_cov)
-  percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
-  
-  set.seed(i)
-  bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
-  error_vec_resampled <- error_mat[bootind,] 
-  
-  sim_rets <- columnwise_sum_cpp(rep(FFCFactors_mat[1000+i-1,1], 2e5), 
-                                 percentage_logret, coefs_mat, error_vec_resampled, 2e5)
-  # calculate portfolio log returns for equally weighted portfolio
-  sim_plrets <- rowMeans(sim_rets)
-  
-  VaR_cop_norm[i,] <- quantile(sim_plrets, c(0.01, 0.05))
-  message("completed: ", i, " of ", n_window)
-  message(VaR_cop_norm[i,])
-}
-VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
-write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR_EXPERIMENT_QDIST_DYN.csv", row.names = FALSE)
 
 
 
 
 
-
-
-
-
-N_sim <- 200000
-n_ahead <- 1
-meanModel <- list(armaOrder = c(0, 0))
-varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
-uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd")
-mspec <- multispec(replicate(4, uspec))
-dcc_spec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
-
-
-n_window <- length(FFCFactors_df[,1])-1000
-
-VaR_cop_norm <- matrix(0L, nrow = n_window, ncol = 2)
-
-for (i in 1:n_window){
-  cl <- makePSOCKcluster(numcores)
-  dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
-  dcc_fcst <- dccforecast(dcc_fit, cluster = cl)
-  stopCluster(cl)
-  
-  ## Extract standardized residuals
-  garch_dcc_res <- dcc_fit@mfit$stdresid
-  
-  
-  ## Extract distribution of marginals (will be used later on for quantile transformation)
-  marginal_dist <- dcc_fit@model$umodel$modeldesc$distribution
-  for (k in 1:4){
-    # get skewness parameter and store as skew_k
-    skew <- paste("skew", k, sep = "_")
-    assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
-                        dcc_fit@model$mpars["skew", k], 
-                        0))
-    
-    # get shape parameter and store as shape_k
-    shape <- paste("shape", k, sep = "_")
-    assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
-                         dcc_fit@model$mpars["shape", k], 
-                         0))
-    if (dcc_fit@model$umodel$modelinc["ghlambda", k]>0){
-      stop("ghlambda not zero")
-    }
-  }
-  
-  
-  
-  ## Extract forecasted cov matrix and mu
-  dcc_fcst_cov <- matrix(dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(dcc_fcst)  
-  dcc_fcst_cor <- cov2cor(dcc_fcst_cov)
-  dcc_fcst_mu <- matrix(dcc_fcst@mforecast$mu, nrow = 1)
-  
-  ## Create pseudoobservations from standardized residuals that lie within unit cube
-  pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
-  
-  
-  ## Fit copula
-  cop_n <- fitCopula(tCopula(dim = 4, df.fixed = FALSE, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], dispstr = "un"), 
-                     data = pobs_res)
-  
-  ## simulation:
-  set.seed(i)
-  cop_sim <- rCopula(N_sim, cop_n@copula)
-  
-  
-  ## Quantile transform
-  res_sim <- cbind(rugarch::qdist(distribution = marginal_dist[1], cop_sim[,1], 
-                                  mu = 0, sigma = 1, skew = skew_1, shape = shape_1), 
-                   rugarch::qdist(distribution = marginal_dist[2], cop_sim[,2], 
-                                  mu = 0, sigma = 1, skew = skew_2, shape = shape_2), 
-                   rugarch::qdist(distribution = marginal_dist[3], cop_sim[,3], 
-                                  mu = 0, sigma = 1, skew = skew_3, shape = shape_3), 
-                   rugarch::qdist(distribution = marginal_dist[4], cop_sim[,4], 
-                                  mu = 0, sigma = 1, skew = skew_4, shape = shape_4)
-  )
-  
-  
-  # returns are X_t = mu_t+sigma_t*epsilon_t
-  # where sigma_t is calculated using cholesky decomposition of forecasted sigma matrix
-  percentage_logret <- matrix(0L, nrow = N_sim, ncol=4)
-  chol_h <- chol(dcc_fcst_cov)
-  percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
-  
-  set.seed(i)
-  bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
-  error_vec_resampled <- error_mat[bootind,] 
-  
-  sim_rets <- columnwise_sum_cpp(rep(FFCFactors_mat[1000+i-1,1], 2e5), 
-                                 percentage_logret, coefs_mat, error_vec_resampled, 2e5)
-  # calculate portfolio log returns for equally weighted portfolio
-  sim_plrets <- rowMeans(sim_rets)
-  
-  VaR_cop_norm[i,] <- quantile(sim_plrets, c(0.01, 0.05))
-  message("completed: ", i, " of ", n_window)
-  message(VaR_cop_norm[i,])
-}
-VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
-write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR_EXPERIMENT_QDIST_DYN_T.csv", row.names = FALSE)
-
-
-
-
-
-
-numcores <- detectCores() - 1
-
-
-N_sim <- 200000
-n_ahead <- 1
-meanModel <- list(armaOrder = c(0, 0))
-varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
-uspec <- ugarchspec(varModel, mean.model = meanModel, distribution.model = "sstd")
-mspec <- multispec(replicate(4, uspec))
-dcc_spec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
-
-
-n_window <- length(FFCFactors_df[,1])-1000
-
-VaR_cop_norm <- matrix(0L, nrow = n_window, ncol = 2)
-
-for (i in 1:n_window){ 
-  cl <- makePSOCKcluster(numcores)
-  dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
-  dcc_fcst <- dccforecast(dcc_fit, cluster = cl)
-  stopCluster(cl)
-  
-  ## Extract standardized residuals
-  garch_dcc_res <- dcc_fit@mfit$stdresid
-  
-  
-  ## Extract distribution of marginals (will be used later on for quantile transformation)
-  marginal_dist <- dcc_fit@model$umodel$modeldesc$distribution
-  u_res <- matrix(0L, nrow = dim(garch_dcc_res)[1], ncol = 4)
-  for (k in 1:4){
-    # get skewness parameter and store as skew_k
-    skew <-  ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
-                    dcc_fit@model$mpars["skew", k], 
-                    0)
-    skew_k <- paste("skew", k, sep = "_")
-    assign(skew_k, skew)
-    
-    # get shape parameter and store as shape_k
-    shape <- ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
-                    dcc_fit@model$mpars["shape", k], 
-                    0)
-    shape_k <- paste("shape", k, sep = "_")
-    assign(shape_k, shape)
-    u_res[,k] <- rugarch::pdist(distribution = marginal_dist[k], 
-                       q  = garch_dcc_res[,k], 
-                       mu = 0,
-                       sigma = 1,
-                       shape = shape,
-                       skew = skew)
-  }
-  
-  
-  
-  ## Extract forecasted cov matrix and mu
-  dcc_fcst_cov <- matrix(dcc_fcst@mforecast$H[[1]], nrow = 4) # or rcov(dcc_fcst)  
-  dcc_fcst_cor <- cov2cor(dcc_fcst_cov)
-  dcc_fcst_mu <- matrix(dcc_fcst@mforecast$mu, nrow = 1)
-  
-  
-  
-  ## Fit copula
-  cop_n <- fitCopula(normalCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], dispstr = "un"), 
-                     data = u_res)
-  
-  ## simulation:
-  set.seed(i)
-  cop_sim <- rCopula(N_sim, cop_n@copula)
-  
-  
-  ## Quantile transform
-  res_sim <- cbind(rugarch::qdist(distribution = marginal_dist[1], cop_sim[,1], 
-                                  mu = 0, sigma = 1, skew = skew_1, shape = shape_1), 
-                   rugarch::qdist(distribution = marginal_dist[2], cop_sim[,2], 
-                                  mu = 0, sigma = 1, skew = skew_2, shape = shape_2), 
-                   rugarch::qdist(distribution = marginal_dist[3], cop_sim[,3], 
-                                  mu = 0, sigma = 1, skew = skew_3, shape = shape_3), 
-                   rugarch::qdist(distribution = marginal_dist[4], cop_sim[,4], 
-                                  mu = 0, sigma = 1, skew = skew_4, shape = shape_4)
-  )
-  
-  
-  # returns are X_t = mu_t+sigma_t*epsilon_t
-  # where sigma_t is calculated using cholesky decomposition of forecasted sigma matrix
-  percentage_logret <- matrix(0L, nrow = N_sim, ncol=4)
-  chol_h <- chol(dcc_fcst_cov)
-  percentage_logret <- matrix(rep(dcc_fcst_mu, each = N_sim), ncol = 4)+t(chol_h%*%t(res_sim))
-  
-  set.seed(i)
-  bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
-  error_vec_resampled <- error_mat[bootind,] 
-  
-  sim_rets <- columnwise_sum_cpp(rep(FFCFactors_mat[1000+i-1,1], 2e5), 
-                                 percentage_logret, coefs_mat, error_vec_resampled, 2e5)
-  # calculate portfolio log returns for equally weighted portfolio
-  sim_plrets <- rowMeans(sim_rets)
-  
-  VaR_cop_norm[i,] <- quantile(sim_plrets, c(0.01, 0.05))
-  message("completed: ", i, " of ", n_window)
-  message(VaR_cop_norm[i,])
-}
-
-VaR_cop_norm_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)], alpha_0.01 = VaR_cop_norm[,1], alpha_0.05 = VaR_cop_norm[,2])
-write.csv(VaR_cop_norm_df, "Data\\VaR\\Multi_cop_norm_VaR_EXPERIMENT_PDISTQDIST_DYN.csv", row.names = FALSE)
 
 
