@@ -13,6 +13,8 @@ theme_set(theme_light())
 
 
 sourceCpp("Scripts/CppFunctions.cpp")
+source("Scripts/Skew_t_Copula.R")
+
 #--------------------------------------------------------#
 ########### Import Data and Create xts Objects ###########
 #--------------------------------------------------------#
@@ -328,6 +330,9 @@ error_df %>%
 # Each row in error_vec_resampled is one draw of a vector of error terms
 # to make sure dependencies are kept, all elements in a row are from the same
 # time t
+
+## Hence we will be using the statements below in the final function to preserve
+## relations between different stocks
 set.seed(42)
 N_boot <- 200000
 bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
@@ -340,6 +345,15 @@ head(error_vec_resampled)
 ########### Copula GARCH as in Fortin et al. (2022) ###########
 #-------------------------------------------------------------#
 
+#' Copula GARCH with Factor Returns
+#'
+#' @param dynamic boolean: whether DCC-GARCH corr matrix is used for Copula 
+#' fitting or not
+#' @param copula_dist copula distribution: choose from normal, t and skew-t 
+#' distribution
+#'
+#' @return dataframe with dates in first column, 0.01 VaR in second column and
+#' 0.05 VaR in third column
 fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
   N_sim <- 200000 # nr. of random draws from copula
   n_ahead <- 1 # 1 step ahead forecast
@@ -401,14 +415,18 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
     
     
     ## Fit copula
+    # start values for skew t
+    start <- list(rho = numeric(6), delta=numeric(4), nu = 6)
+    
     if (dynamic == FALSE){
       cop_fit <- switch(copula_dist,
           "norm" = fitCopula(
             normalCopula(dim = 4), data = pobs_res
           ),
           "t" = fitCopula(
-            tCopula(dim = 4, df.fixed = FALSE), data = pobs_res)
-                        
+            tCopula(dim = 4, df.fixed = FALSE), data = pobs_res
+          ),
+          "skewt" = stcop.mle(pobs_res, start=start, control=list(reltol=1e-4))
       )
     }
     
@@ -428,8 +446,18 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
 
     
     ## Simulation from copula:
-    set.seed(i)
-    cop_sim <- rCopula(N_sim, cop_fit@copula)
+    if (copula_dist == "skewt"){
+      rho <- cop_fit$dp$rho
+      delta <- cop_fit$dp$delta
+      df <- cop_fit$dp$nu
+      
+      set.seed(i)
+      cop_sim <- rstcop(N_sim, rho, delta, df)
+    }
+    else{
+      set.seed(i)
+      cop_sim <- rCopula(N_sim, cop_fit@copula)
+    }
     
     
     ## Quantile transform
@@ -499,6 +527,10 @@ write.csv(VaR_cop_t_df,
 VaR_cop_t_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, copula_dist = "t")
 write.csv(VaR_cop_t_df, 
           "Data\\VaR\\Fortin_cop_t_dyn.csv", row.names = FALSE)
+
+VaR_cop_skewt_df <- fortin_cgarch_VaR(dynamic = FALSE, copula_dist = "skewt")
+write.csv(VaR_cop_skewt_df, 
+          "Data\\VaR\\Fortin_cop_skewt.csv", row.names = FALSE)
 
 
 
