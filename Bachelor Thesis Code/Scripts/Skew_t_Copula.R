@@ -1,6 +1,7 @@
 
 # https://www.semanticscholar.org/paper/Maximum-likelihood-estimation-of-skew-t-copula-Yoshiba/30350f710764f2261f1e3c2c113c2df53d0b699d?p2df
-# skew-t coplua estimation (MLE) using "sn" ver.1.0-0
+# the original code caused Omega to be non-symmetric for dimensions >3 in 
+# stcopnll and rstcop since a transpose has been forgotten
 library(sn)
 library(signal)
 
@@ -73,7 +74,9 @@ stcopnll <- function(para, udat=NULL){
   zeta <- delta/sqrt(1-delta*delta);
   dim <- length(delta);
   Omega <- diag(dim);
-  Omega[upper.tri(Omega)] <- Omega[lower.tri(Omega)] <- dp$rho;
+  #Omega[upper.tri(Omega)] <- Omega[lower.tri(Omega)] <- dp$rho;
+  Omega[upper.tri(Omega)] <- dp$rho
+  Omega[lower.tri(Omega)] <- t(Omega)[lower.tri(Omega)]
   iOmega <- solve(Omega);
   alpha <- iOmega %*% delta /sqrt(1-(t(delta) %*% iOmega %*% delta)[1,1]);
   nu <- dp$nu;
@@ -107,7 +110,9 @@ rstcop <- function(n,rho,delta,nu,...){
   dim <- length(delta);
   zeta <- delta/sqrt(1-delta*delta);
   Omega <- diag(dim);
-  Omega[upper.tri(Omega)] <- Omega[lower.tri(Omega)] <- rho;
+  #Omega[upper.tri(Omega)] <- Omega[lower.tri(Omega)] <- rho;
+  Omega[upper.tri(Omega)] <- rho
+  Omega[lower.tri(Omega)] <- t(Omega)[lower.tri(Omega)]
   iOmega <- solve(Omega);
   alpha <- iOmega %*% delta /sqrt(1-(t(delta) %*% iOmega %*% delta)[1,1]);
   x <- rmst(n=n,Omega=Omega,alpha=alpha,nu=nu);
@@ -179,12 +184,14 @@ qst <- function (p, xi = 0, omega = 1, alpha = 0, nu = Inf, tol = 1e-08, maxit
 }
 
 
+
 ## Don't run when importing
 if (sys.nframe() == 0) {
   library(ggplot2)
   library(ggExtra) # for ggmarginals
   library(copula) # for pobs
   library(mvtnorm)
+  library(gridExtra) # for plotgrid
   
   N <- 1000
   mat <- rmvnorm(N, mean = c(3, 7, -2), 
@@ -198,6 +205,8 @@ if (sys.nframe() == 0) {
   
   ## Extract parameter estimates
   rho <- stcopmle_mat$dp$rho
+  # note that if delta <0 the lower tail has a higher dependence than the upper
+  # tail
   delta <- stcopmle_mat$dp$delta
   nu <- stcopmle_mat$dp$nu
   
@@ -212,19 +221,21 @@ if (sys.nframe() == 0) {
   sim_dat_df %>% head()
   p1 <- ggplot(sim_dat_df, aes(col_1, col_2))+
     geom_point(alpha = 0.2)+
-    xlab("Col 1")+ylab("Col 2")+ggtitle("Samples from sstd copula")
+    xlab("Col 1")+ylab("Col 2")+ggtitle("Samples u from skewt copula")
   p1 <- ggExtra::ggMarginal(p1, type = "histogram")
   
   p2 <- ggplot(sim_dat_df, aes(col_2, col_3))+
     geom_point(alpha = 0.2)+
-    xlab("Col 2")+ylab("Col 3")+ggtitle("Samples from sstd copula")
+    xlab("Col 2")+ylab("Col 3")+ggtitle("Samples u from skewt copula")
   p2 <- ggExtra::ggMarginal(p2, type = "histogram")
   
   p3 <- ggplot(sim_dat_df, aes(col_1, col_3))+
     geom_point(alpha = 0.2)+
-    xlab("Col 1")+ylab("Col 3")+ggtitle("Samples from sstd copula")
+    xlab("Col 1")+ylab("Col 3")+ggtitle("Samples u from skewt copula")
   p3 <- ggExtra::ggMarginal(p3, type = "histogram")
   
-  par(mfrow = c(2,2))
-  p1; p2; p3
+  grid.arrange(p1, p2, p3, nrow = 2)
+  
+  
+  copula::splom2(sim_dat$u[1:500,])
 }
