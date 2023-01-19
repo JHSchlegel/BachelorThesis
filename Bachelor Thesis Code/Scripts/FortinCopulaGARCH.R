@@ -498,8 +498,8 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
     
     fractional_arithmetic_returns <- apply(sim_returns, 2,
                                            function(x)exp((x/100))-1)
-    portfolio_returns <- rowMeans(fractional_arithmetic_returns)
-    sim_pf_plreturns <- sapply(portfolio_ret, function(x) 100*log(x+1))
+    sim_pf_returns <- rowMeans(fractional_arithmetic_returns)
+    sim_pf_plreturns <- sapply(sim_pf_returns, function(x) 100*log(x+1))
     
     VaR_cop[i,] <- quantile(sim_pf_plreturns, c(0.01, 0.05))
     message("Completed: ", i, " of ", n_window)
