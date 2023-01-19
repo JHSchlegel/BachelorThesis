@@ -16,7 +16,7 @@ if (!require(MSGARCH)) install.packages("MSGARCH")
 
 FFCFactors_df <- read.csv("./Data/FFCFactors.csv", header = TRUE)
 stocks_plret_df <- read.csv("./Data/StockPlrets.csv", header = TRUE)
-portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date, Portfolio =rowMeans(stocks_plret_df[,-1]))
+portfolio_plret_df <- read.csv("./Data/PortfolioPlrets.csv", header = TRUE)
 
 
 ## Convert to time series
