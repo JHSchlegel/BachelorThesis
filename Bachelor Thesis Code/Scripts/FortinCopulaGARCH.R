@@ -22,8 +22,8 @@ source("Scripts/Skew_t_Copula.R")
 ## Import data from csv files created in EDA.R
 FFCFactors_df <- read.csv("./Data/FFCFactors.csv", header = TRUE)
 stocks_plret_df <- read.csv("./Data/StockPlrets.csv", header = TRUE)
-portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date, 
-                              Portfolio = apply(stocks_plret_df[,-1], 1, mean))
+portfolio_plret_df <- read.csv("./Data/PortfolioPlrets.csv", header = TRUE)
+
 
 ## Convert to Matrix
 # Matrices only include numeric values; hence especially indexing by row much 
@@ -494,9 +494,14 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
       )
     
     # calculate portfolio percentage log returns for equally weighted portfolio
-    sim_pf_returns <- rowMeans(sim_returns)
+    #sim_pf_returns <- rowMeans(sim_returns)
     
-    VaR_cop[i,] <- quantile(sim_pf_returns, c(0.01, 0.05))
+    fractional_arithmetic_returns <- apply(sim_returns, 2,
+                                           function(x)exp((x/100))-1)
+    sim_pf_returns <- rowMeans(fractional_arithmetic_returns)
+    sim_pf_plreturns <- sapply(sim_pf_returns, function(x) 100*log(x+1))
+    
+    VaR_cop[i,] <- quantile(sim_pf_plreturns, c(0.01, 0.05))
     message("Completed: ", i, " of ", n_window)
     message(VaR_cop[i,])
   }

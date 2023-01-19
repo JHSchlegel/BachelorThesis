@@ -13,8 +13,8 @@
 
 ## Portfolio Plrets
 stocks_plret_df <- read.csv("./Data/StockPlrets.csv", header = TRUE)
-portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date, 
-                                 Portfolio = rowMeans(stocks_plret_df[,-1]))
+portfolio_plret_df <- read.csv("./Data/PortfolioPlrets.csv", header = TRUE)
+
 
 ## VaR
 # Univariate:
