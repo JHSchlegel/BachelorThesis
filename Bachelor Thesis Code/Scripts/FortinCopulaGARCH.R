@@ -452,7 +452,7 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
       df <- cop_fit$dp$nu
       
       set.seed(i)
-      cop_sim <- rstcop(N_sim, rho, delta, df)
+      cop_sim <- rstcop(N_sim, rho, delta, df)$u
     }
     else{
       set.seed(i)
@@ -498,6 +498,7 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
     
     VaR_cop[i,] <- quantile(sim_pf_returns, c(0.01, 0.05))
     message("Completed: ", i, " of ", n_window)
+    message(VaR_cop[i,])
   }
   VaR_cop_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)],
                            alpha_0.01 = VaR_cop[,1], alpha_0.05 = VaR_cop[,2])
