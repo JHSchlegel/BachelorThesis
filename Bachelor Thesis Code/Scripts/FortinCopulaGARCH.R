@@ -349,12 +349,14 @@ head(error_vec_resampled)
 #'
 #' @param dynamic boolean: whether DCC-GARCH corr matrix is used for Copula 
 #' fitting or not
+#' @param pseudo_obs boolean: whether pseudo observations or PIT should be used
 #' @param copula_dist copula distribution: choose from normal, t and skew-t 
 #' distribution
 #'
 #' @return dataframe with dates in first column, 0.01 VaR in second column and
 #' 0.05 VaR in third column
-fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
+fortin_cgarch_VaR <- function(dynamic, pseudo_obs = FALSE,
+                              copula_dist = c("norm", "t", "skewt")){
   N_sim <- 200000 # nr. of random draws from copula
   n_ahead <- 1 # 1 step ahead forecast
   n_window <- length(FFCFactors_df[,1])-1000 # how many rolling windows
@@ -388,20 +390,43 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
     ## Extract distribution of marginals (will be used later on 
     ## for quantile transformation)
     marginal_dist <- dcc_fit@model$umodel$modeldesc$distribution
+    # for (k in 1:4){
+    #   # get skewness parameter and store as skew_k
+    #   skew <- paste("skew", k, sep = "_")
+    #   assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
+    #                       dcc_fit@model$mpars["skew", k], 
+    #                       0))
+    #   
+    #   # get shape parameter and store as shape_k
+    #   shape <- paste("shape", k, sep = "_")
+    #   assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
+    #                        dcc_fit@model$mpars["shape", k], 
+    #                        0))
+    # }
+    u_res <- matrix(0L, nrow = dim(garch_dcc_res)[1], ncol = 4)
     for (k in 1:4){
       # get skewness parameter and store as skew_k
-      skew <- paste("skew", k, sep = "_")
-      assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
-                          dcc_fit@model$mpars["skew", k], 
-                          0))
+      skew <-  ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
+                      dcc_fit@model$mpars["skew", k], 
+                      0)
+      skew_k <- paste("skew", k, sep = "_")
+      assign(skew_k, skew) # name skew_1, ..., skew_4 to reuse for qdist later
       
       # get shape parameter and store as shape_k
-      shape <- paste("shape", k, sep = "_")
-      assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
-                           dcc_fit@model$mpars["shape", k], 
-                           0))
+      shape <- ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
+                      dcc_fit@model$mpars["shape", k], 
+                      0)
+      shape_k <- paste("shape", k, sep = "_")
+      assign(shape_k, shape)  # name shape_1, ..., shape_4 to reuse for qdist 
+      
+      ## PIT to get u's that lie within unit cube
+      u_res[,k] <- rugarch::pdist(distribution = marginal_dist[k], 
+                                  q  = garch_dcc_res[,k], 
+                                  mu = 0,
+                                  sigma = 1,
+                                  shape = shape,
+                                  skew = skew)
     }
-    
     
     
     ## Extract forecasted cov matrix and mean
@@ -415,18 +440,21 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
     
     
     ## Fit copula
+    
+    # use pobs or PIT values for fitting depending on user input
+    ifelse(pseudo_obs == TRUE, data <- pobs_res, data <- u_res)
     # start values for skew t
     start <- list(rho = numeric(6), delta=numeric(4), nu = 6)
     
     if (dynamic == FALSE){
       cop_fit <- switch(copula_dist,
           "norm" = fitCopula(
-            normalCopula(dim = 4), data = pobs_res
+            normalCopula(dim = 4), data = data
           ),
           "t" = fitCopula(
-            tCopula(dim = 4, df.fixed = FALSE), data = pobs_res
+            tCopula(dim = 4, df.fixed = FALSE), data = data
           ),
-          "skewt" = stcop.mle(pobs_res, start=start, control=list(reltol=1e-4))
+          "skewt" = stcop.mle(data, start=start, control=list(reltol=1e-4))
       )
     }
     
@@ -435,11 +463,11 @@ fortin_cgarch_VaR <- function(dynamic, copula_dist = c("norm", "t", "skewt")){
       cop_fit <- switch(copula_dist,
           "norm" = fitCopula(
             normalCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], 
-                       dispstr = "un"), data = pobs_res
+                       dispstr = "un"), data = data
       ),
           "t" = fitCopula(
             tCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)],
-                    df.fixed = FALSE, dispstr = "un"), data = pobs_res)
+                    df.fixed = FALSE, dispstr = "un"), data = data)
                           
     )
     }
