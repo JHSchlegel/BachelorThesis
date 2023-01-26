@@ -355,21 +355,29 @@ head(error_vec_resampled)
 #'
 #' @return dataframe with dates in first column, 0.01 VaR in second column and
 #' 0.05 VaR in third column
-fortin_cgarch_VaR <- function(dynamic, pseudo_obs = FALSE,
+fortin_cgarch_VaR <- function(dynamic, pseudo_obs = TRUE, ugarch_dist = c("norm", "sstd"),
+                              ugarch_model = c("GARCH", "NGARCH"),
                               copula_dist = c("norm", "t", "skewt")){
   N_sim <- 200000 # nr. of random draws from copula
   n_ahead <- 1 # 1 step ahead forecast
   n_window <- length(FFCFactors_df[,1])-1000 # how many rolling windows
   numcores <- detectCores() - 1 # use all but 1 core
   
+  ugarch_dist <- match.arg(ugarch_dist)
+  
+  ugarch_model = match.arg(ugarch_model)
+  
   copula_dist <- match.arg(copula_dist)
   
   ## DCC specification
   meanModel <- list(armaOrder = c(0, 0), include.mean = TRUE)
-  varModel <- list(model = "fGARCH", submodel = "NGARCH",
-                   garchOrder = c(1,1))
+  varModel <- switch(ugarch_model,
+                     "NGARCH" = list(model = "fGARCH", submodel = "NGARCH",
+                                     garchOrder = c(1,1)),
+                     "GARCH" = list(model = "sGARCH", garchOrder = c(1,1))
+  )
   uspec <- ugarchspec(varModel, mean.model = meanModel, 
-                      distribution.model = "sstd")
+                      distribution.model = ugarch_dist)
   mspec <- multispec(replicate(4, uspec))
   dcc_spec <- dccspec(mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), 
                       distribution =  "mvnorm")
@@ -540,29 +548,34 @@ fortin_cgarch_VaR <- function(dynamic, pseudo_obs = FALSE,
 
 
 
-VaR_cop_norm_df <- fortin_cgarch_VaR(dynamic = FALSE, copula_dist = "norm")
+VaR_cop_norm_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE,
+                                     copula_dist = "norm")
 write.csv(VaR_cop_norm_df, 
           "Data\\VaR\\Fortin_cop_norm.csv", row.names = FALSE)
 
 
 
-VaR_cop_norm_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, copula_dist = "norm")
-write.csv(VaR_cop_norm_df, 
+VaR_cop_norm_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, pseudo_obs = TRUE,
+                                         copula_dist = "norm")
+write.csv(VaR_cop_norm_dyn_df, 
           "Data\\VaR\\Fortin_cop_norm_dyn.csv", row.names = FALSE)
 
 
 
 
-VaR_cop_t_df <- fortin_cgarch_VaR(dynamic = FALSE, copula_dist = "t")
+VaR_cop_t_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE,
+                                  copula_dist = "t")
 write.csv(VaR_cop_t_df, 
           "Data\\VaR\\Fortin_cop_t.csv", row.names = FALSE)
 
 
-VaR_cop_t_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, copula_dist = "t")
-write.csv(VaR_cop_t_df, 
+VaR_cop_t_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, pseudo_obs = TRUE,
+                                      copula_dist = "t")
+write.csv(VaR_cop_t_dyn_df, 
           "Data\\VaR\\Fortin_cop_t_dyn.csv", row.names = FALSE)
 
-VaR_cop_skewt_df <- fortin_cgarch_VaR(dynamic = FALSE, copula_dist = "skewt")
+VaR_cop_skewt_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE,
+                                      copula_dist = "skewt")
 write.csv(VaR_cop_skewt_df, 
           "Data\\VaR\\Fortin_cop_skewt.csv", row.names = FALSE)
 
@@ -572,13 +585,29 @@ write.csv(VaR_cop_skewt_df,
 
 
 
+VaR_cop_norm_norm_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
+                                         copula_dist = "norm")
+
+write.csv(VaR_cop_norm_norm_df, 
+          "Data\\VaR\\Fortin_cop_norm_norm.csv", row.names = FALSE)
 
 
 
+VaR_cop_norm_sGARCH_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
+                                            ugarch_model = "GARCH",
+                                          copula_dist = "norm")
+
+write.csv(VaR_cop_norm_sGARCH_df, 
+          "Data\\VaR\\Fortin_cop_norm_sGARCH.csv", row.names = FALSE)
 
 
 
+VaR_cop_t_sGARCH_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
+                                            ugarch_model = "GARCH",
+                                            copula_dist = "t")
 
+write.csv(VaR_cop_t_sGARCH_df, 
+          "Data\\VaR\\Fortin_cop_t_sGARCH.csv", row.names = FALSE)
 
 
 
