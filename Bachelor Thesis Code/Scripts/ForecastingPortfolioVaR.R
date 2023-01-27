@@ -245,24 +245,31 @@ head(multi_dcc_VaR)
 write.csv(multi_dcc_VaR, "Data\\VaR\\Multi_DCC_GARCH.csv", row.names = FALSE)
 
 
-# 
-# dcc_NGARCH_meanModel <- list(armaOrder = c(0,0), include.mean = TRUE)
-# dcc_NGARCH_varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
-# dcc_NGARCH_uspec <- ugarchspec(variance.model = dcc_NGARCH_varModel, mean.model = dcc_NGARCH_meanModel, distribution.model = "sstd")
-# dcc_NGARCH_mspec <- multispec(replicate(10, dcc_NGARCH_uspec))
-# dcc_NGARCH_spec <- dccspec(dcc_NGARCH_mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
-# 
-# cl <- makePSOCKcluster(numcores)
-# multi_dcc_NGARCH_roll <- dccroll(spec = dcc_NGARCH_spec, data = stocks_plret_ts, n.ahead = 1, n.start = 1000, refit.every = 1, refit.window = "moving", window.size = 1000,  cluster = cl)
-# stopCluster(cl)
-# 
-# n <- length(stocks_plret_df[,1])
-# n.window <- n-1000
-# dcc_NGARCH_sigma_pf <- numeric(n.window)
-# dcc_NGARCH_cov <- rcov(multi_dcc_NGARCH_roll) # rcov to extract forecasted Covariance matrix; rcor would extract forecasted Correlation matrix
-# for (i in 1:n.window) dcc_NGARCH_sigma_pf[i] <- portfolio.weights %*% dcc_NGARCH_cov[,,i] %*% portfolio.weights
-# multi_dcc_NGARCH_VaR <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)])
-# multi_dcc_NGARCH_VaR$alpha_1perc <- sapply(dcc_NGARCH_sigma_pf, function(x) x*qnorm(0.01, 0, 1, lower.tail = TRUE))
-# multi_dcc_NGARCH_VaR$alpha_5perc <-  sapply(dcc_NGARCH_sigma_pf, function(x) x*qnorm(0.05, 0, 1, lower.tail = TRUE))
-# head(multi_dcc_NGARCH_VaR)
-# write.csv(multi_dcc_NGARCH_VaR, "Data\\VaR\\Multi_dcc_NGARCH_GARCH.csv", row.names = FALSE)
+
+dcc_NGARCH_meanModel <- list(armaOrder = c(0,0), include.mean = TRUE)
+dcc_NGARCH_varModel <- list(model = "fGARCH", submodel = "NGARCH", garchOrder = c(1,1))
+dcc_NGARCH_uspec <- ugarchspec(variance.model = dcc_NGARCH_varModel, mean.model = dcc_NGARCH_meanModel, distribution.model = "sstd")
+dcc_NGARCH_mspec <- multispec(replicate(10, dcc_NGARCH_uspec))
+dcc_NGARCH_spec <- dccspec(dcc_NGARCH_mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), distribution =  "mvnorm")
+
+cl <- makePSOCKcluster(numcores)
+multi_dcc_NGARCH_roll <- dccroll(spec = dcc_NGARCH_spec, data = stocks_plret_ts, n.ahead = 1, n.start = 1000, refit.every = 1, refit.window = "moving", window.size = 1000,  cluster = cl)
+stopCluster(cl)
+
+n <- length(stocks_plret_df[,1])
+n.window <- n-1000
+dcc_NGARCH_sigma_pf <- numeric(n.window)
+dcc_NGARCH_mu_stocks <- matrix(NA, nrow = n_windows, ncol = 10)
+dcc_NGARCH_cov <- rcov(multi_dcc_NGARCH_roll) # rcov to extract forecasted Covariance matrix; rcor would extract forecasted Correlation matrix
+for (i in 1:n.window) {
+  dcc_NGARCH_sigma_pf[i] <- portfolio.weights %*% dcc_NGARCH_cov[,,i] %*% portfolio.weights
+  dcc_NGARCH_mu_stocks[i,] <- multi_dcc_NGARCH_roll@mforecast[[i]]@mforecast$mu
+}
+
+dcc_NGARCH_mu_pf <- apply(dcc_NGARCH_mu_stocks, 1, function(x) 100*log(mean(exp(x/100)-1)+1))
+
+multi_dcc_NGARCH_VaR <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)])
+multi_dcc_NGARCH_VaR$alpha_1perc <- -dcc_NGARCH_mu_pf+sapply(dcc_NGARCH_sigma_pf, function(x) x*qnorm(0.01, 0, 1, lower.tail = TRUE))
+multi_dcc_NGARCH_VaR$alpha_5perc <- -dcc_NGARCH_mu_pf+sapply(dcc_NGARCH_sigma_pf, function(x) x*qnorm(0.05, 0, 1, lower.tail = TRUE))
+head(multi_dcc_NGARCH_VaR)
+write.csv(multi_dcc_NGARCH_VaR, "Data\\VaR\\Multi_dcc_NGARCH_GARCH.csv", row.names = FALSE)
