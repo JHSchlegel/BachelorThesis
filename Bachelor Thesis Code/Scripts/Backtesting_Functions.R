@@ -4,9 +4,12 @@
 
 # !!!!! Important Note !!!!! #
 # The code for the Conditional Predictive Ability Test by Giacomini and White
-# (2006) is based on the Matlab code provided by the authors and was only
-# translated to R by me. The Matlab code can be found here:
+# (2006) is based on the Matlab code provided by the authors. I translated it
+# to R such that it covers my specific case. Other forecasting horizons etc.
+# are not implemented. The Matlab code of the Giacomini and white can be found
+# here:
 # http://www.runmycode.org/companion/view/88
+
 # I compared my implementation with theirs for a few different pairs of VaR 
 # losses and got the same results
 
