@@ -71,12 +71,12 @@ if (!require(tidyverse)) install.packages("tidyverse")
 #' @param VaR_in_col_nr integer indicating in which column of dataframe the VaR
 #'  is
 #' @param pf_plrets dataframe of portfolio percentage returns
-#' @param alpha VaR level in percent w/o percentage sign
+#' @param VaR_percentile VaR level in percent w/o percentage sign
 #' @param modelname Name of model as character
 #' 
 #' @return Exceedences plot which highlights exceedances and
 #'  displays number of exceedances per year
-VaR_exceed_plot <- function(dataframe, VaR_in_col_nr, pf_plrets, alpha, 
+VaR_exceed_plot <- function(dataframe, VaR_in_col_nr, pf_plrets, VaR_percentile, 
                             modelname){
   VaR_df <- data.frame(Date = as.Date(dataframe[,1]),
       VaR = dataframe[,VaR_in_col_nr],
@@ -101,7 +101,7 @@ VaR_exceed_plot <- function(dataframe, VaR_in_col_nr, pf_plrets, alpha,
                        labels = c("Lower than VaR", "Greater than VaR"))+
     geom_line(alpha = 0.7)+
     labs(y = "Daily Portfolio Returns", x = "Date", 
-         title = paste0(alpha, "% VaR Exceedances Plot for ",modelname))+
+         title = paste0(VaR_percentile, "% VaR Exceedances Plot for ",modelname))+
     theme_light()+
     theme(legend.position = c(.15, .8), 
           legend.background = element_rect(color = NA), 
@@ -121,10 +121,10 @@ VaR_exceed_plot <- function(dataframe, VaR_in_col_nr, pf_plrets, alpha,
 
 ## Don't run when importing
 if (sys.nframe() == 0) {
-  VaR_exceed_plot(Uni_Normal_GARCH_VaR, 3, portfolio_plret_df, alpha = 5,
-                  "Uni_Normal_GARCH")
-  VaR_exceed_plot(Uni_Normal_GARCH_VaR, 2, portfolio_plret_df, alpha = 1, 
-                  "Uni_Normal_GARCH")
+  VaR_exceed_plot(Uni_Normal_GARCH_VaR, 3, portfolio_plret_df, 
+                  VaR_percentile = 5,"Uni_Normal_GARCH")
+  VaR_exceed_plot(Uni_Normal_GARCH_VaR, 2, portfolio_plret_df,
+                  VaR_percentile = 1, "Uni_Normal_GARCH")
 }
 
 
@@ -373,27 +373,27 @@ if (sys.nframe() == 0) {
 exceedances_table <- function(VaR_list, 
                               plrets = portfolio_plret_df[-c(1:1000),]){
   n <- length(VaR_list)
-  matrix_99 <- matrix(0L, nrow = n, ncol = 9)
+  matrix_01 <- matrix(0L, nrow = n, ncol = 9)
   for (i in 1:n){
-    matrix_99[i, 1] <- unlist(exceedances(VaR_list[[i]][,2])$total_exc)
-    matrix_99[i, 2:9] <- unlist(exceedances(VaR_list[[i]][,2])$exc_per_year[,2])
+    matrix_01[i, 1] <- unlist(exceedances(VaR_list[[i]][,2])$total_exc)
+    matrix_01[i, 2:9] <- unlist(exceedances(VaR_list[[i]][,2])$exc_per_year[,2])
   }
-  table_99 <- data.frame(matrix_99)
-  colnames(table_99) <- c("Total_Exc", "2004", "2005", "2006", "2007",
+  table_01 <- data.frame(matrix_01)
+  colnames(table_01) <- c("Total_Exc", "2004", "2005", "2006", "2007",
                           "2008", "2009", "2010", "2011")
-  rownames(table_99) <- names(VaR_list)
+  rownames(table_01) <- names(VaR_list)
   
-  matrix_95 <- matrix(0L, nrow = n, ncol = 9)
+  matrix_05 <- matrix(0L, nrow = n, ncol = 9)
   for (i in 1:n){
-    matrix_95[i, 1] <- unlist(exceedances(VaR_list[[i]][,3])$total_exc)
-    matrix_95[i, 2:9] <- unlist(exceedances(VaR_list[[i]][,3])$exc_per_year[,2])
+    matrix_05[i, 1] <- unlist(exceedances(VaR_list[[i]][,3])$total_exc)
+    matrix_05[i, 2:9] <- unlist(exceedances(VaR_list[[i]][,3])$exc_per_year[,2])
   }
-  table_95 <- data.frame(matrix_95)
-  colnames(table_95) <- c("Total_Exc", "2004", "2005", "2006", "2007",
+  table_05 <- data.frame(matrix_05)
+  colnames(table_05) <- c("Total_Exc", "2004", "2005", "2006", "2007",
                           "2008", "2009", "2010", "2011")
-  rownames(table_95) <- names(VaR_list)
+  rownames(table_05) <- names(VaR_list)
   
-  return(list(table_99 = table_99, table_95 = table_95))
+  return(list(table_01 = table_01, table_05 = table_05))
 }
 
 ## Don't run when importing
@@ -403,8 +403,8 @@ if (sys.nframe() == 0) {
                         Skewt_GJR = Uni_Skewt_GJR_GARCH_VaR,
                         skewt_NGARCH = Uni_Skewt_NGARCH_VaR,
                         normal_DCC_GARCH = Multi_DCC_GARCH_VaR)
-  exceedances_table(test_VaR_list)$table_99
-  exceedances_table(test_VaR_list)$table_95
+  exceedances_table(test_VaR_list)$table_01
+  exceedances_table(test_VaR_list)$table_05
 }
 
 
@@ -428,50 +428,50 @@ if (sys.nframe() == 0) {
 performance_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),],
                               conf_level = 0.95){
   n <- length(VaR_list)
-  coverage_99 <- matrix(0L, nrow = n, ncol = 1)
-  tests_99 <- matrix(0L, nrow = n, ncol = 3)
+  coverage_01 <- matrix(0L, nrow = n, ncol = 1)
+  tests_01 <- matrix(0L, nrow = n, ncol = 3)
   for (i in 1:n){
-    coverage_99[i, 1] <- empirical_coverage(VaR_list[[i]][,2], plrets[,2])
-    tests_99[i, 1] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], 
+    coverage_01[i, 1] <- empirical_coverage(VaR_list[[i]][,2], plrets[,2])
+    tests_01[i, 1] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], 
                                           plrets[,2])@uc$p_val_uc)
-    tests_99[i, 2] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], 
+    tests_01[i, 2] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], 
                                           plrets[,2])@ind$p_val_ind)
-    tests_99[i, 3] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], 
+    tests_01[i, 3] <- unlist(VaR_LR_tests(0.01, VaR_list[[i]][,2], 
                                           plrets[,2])@cc$p_val_cc)
   }
-  exceed_99 <- exceedances_table(VaR_list, plrets)$table_99
-  performance_table_99 <- data.frame(coverage_99, tests_99, exceed_99)
-  colnames(performance_table_99) <- c("coverage_1%", "uc", "ind", "cc", 
+  exceed_01 <- exceedances_table(VaR_list, plrets)$table_01
+  performance_table_01 <- data.frame(coverage_01, tests_01, exceed_01)
+  colnames(performance_table_01) <- c("coverage_1%", "uc", "ind", "cc", 
                                       "Total_Exc", "2004", "2005", "2006", 
                                       "2007", "2008", "2009", "2010", "2011")
-  rownames(performance_table_99) <- names(VaR_list)
+  rownames(performance_table_01) <- names(VaR_list)
   
-  coverage_95 <- matrix(0L, nrow = n, ncol = 1)
-  tests_95 <- matrix(0L, nrow = n, ncol = 3)
+  coverage_05 <- matrix(0L, nrow = n, ncol = 1)
+  tests_05 <- matrix(0L, nrow = n, ncol = 3)
   for (i in 1:n){
-    coverage_95[i, 1] <- empirical_coverage(VaR_list[[i]][,3], plrets[,2])
-    tests_95[i, 1] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], 
+    coverage_05[i, 1] <- empirical_coverage(VaR_list[[i]][,3], plrets[,2])
+    tests_05[i, 1] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], 
                                           plrets[,2])@uc$p_val_uc)
-    tests_95[i, 2] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3],
+    tests_05[i, 2] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3],
                                           plrets[,2])@ind$p_val_ind)
-    tests_95[i, 3] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], 
+    tests_05[i, 3] <- unlist(VaR_LR_tests(0.05, VaR_list[[i]][,3], 
                                           plrets[,2])@cc$p_val_cc)
   }
-  exceed_95 <- exceedances_table(VaR_list, plrets)$table_95
-  performance_table_95 <- data.frame(coverage_95, tests_95, exceed_95)
-  colnames(performance_table_95) <- c("coverage_5%", "uc", "ind", "cc", 
+  exceed_05 <- exceedances_table(VaR_list, plrets)$table_05
+  performance_table_05 <- data.frame(coverage_05, tests_05, exceed_05)
+  colnames(performance_table_05) <- c("coverage_5%", "uc", "ind", "cc", 
                                       "Total_Exc", "2004", "2005", "2006", 
                                       "2007", "2008", "2009", "2010", "2011")
-  rownames(performance_table_95) <- names(VaR_list)
+  rownames(performance_table_05) <- names(VaR_list)
   
-  return(list(performance_table_99 = performance_table_99 %>% round(3), 
-              performance_table_95 = performance_table_95 %>% round(3)))
+  return(list(performance_table_01 = performance_table_01 %>% round(3), 
+              performance_table_05 = performance_table_05 %>% round(3)))
 }
 
 ## Don't run when importing
 if (sys.nframe() == 0) {
-  performance_table(test_VaR_list)$performance_table_99 
-  performance_table(test_VaR_list)$performance_table_95
+  performance_table(test_VaR_list)$performance_table_01 
+  performance_table(test_VaR_list)$performance_table_05
 }
 
 
@@ -491,30 +491,30 @@ if (sys.nframe() == 0) {
 #' 95% VaR in third column
 #' @param plrets portfolio returns; by default portfolio returns from t=1001 
 #' until t=T
-#' @param percentile 1- VaR percentiles; by default c(0.99, 0.95)
+#' @param percentile 1- VaR percentiles; by default c(0.01, 0.05)
 #'
 #' @return list w/ losses for the percentiles as first two elements and 
 #' mean losses for the percentiles as last two elements
 loss_VaR <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),2], 
-                     percentile = c(0.99, 0.95)){
-  indicator_99 <- ifelse(plrets-VaR[2]<0, 1, 0)
-  indicator_95 <- ifelse(plrets-VaR[3]<0, 1, 0)
-  loss_99 <- (plrets-VaR[2])*(percentile[1]-indicator_99)
-  loss_95 <- (plrets-VaR[3])*(percentile[2]-indicator_95)
+                     percentile = c(0.01, 0.05)){
+  indicator_01 <- ifelse(plrets-VaR[2]<0, 1, 0)
+  indicator_05 <- ifelse(plrets-VaR[3]<0, 1, 0)
+  loss_01 <- (plrets-VaR[2])*(percentile[1]-indicator_01)
+  loss_05 <- (plrets-VaR[3])*(percentile[2]-indicator_05)
   return(list(
-    loss_99=loss_99, 
-    loss_95 = loss_95, 
-    mean_loss_99 = colMeans(loss_99), 
-    mean_loss_95 = colMeans(loss_95)
-    ))
+    loss_01=loss_01, 
+    loss_05 = loss_05, 
+    mean_loss_01 = colMeans(loss_01), 
+    mean_loss_05 = colMeans(loss_05)
+  ))
 }
 
 ## Don't run when importing
 if (sys.nframe() == 0) {
   Uni_t_GJR_loss <- loss_VaR(Uni_t_GJR_GARCH_VaR)
   Uni_Normal_loss <- loss_VaR(Uni_Normal_GARCH_VaR)
-  Uni_Normal_loss$mean_loss_99
-  Uni_t_GJR_loss$mean_loss_99
+  Uni_Normal_loss$mean_loss_01
+  Uni_t_GJR_loss$mean_loss_01
 }
 
 
@@ -523,10 +523,10 @@ if (sys.nframe() == 0) {
   ## Compare w/ VaRloss function from rugarch package:
   all.equal(VaRloss(0.95, portfolio_plret_df[-c(1:1000),2], 
                     Uni_Normal_GARCH_VaR[,3]), 
-            as.numeric(as.matrix(100*Uni_Normal_loss$loss_95)))
+            as.numeric(as.matrix(100*Uni_Normal_loss$loss_05)))
   all.equal(VaRloss(0.95, portfolio_plret_df[-c(1:1000),2], 
                     Uni_t_GJR_GARCH_VaR[,3]), 
-            as.numeric(as.matrix(100*Uni_t_GJR_loss$loss_95)))
+            as.numeric(as.matrix(100*Uni_t_GJR_loss$loss_05)))
   # rugarch VaRloss is 100* the loss calculated above
 }
 
@@ -549,26 +549,26 @@ VaR_loss_ranking <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),],
   matrix_99 <- matrix(0L, nrow = n, ncol = 1)
   matrix_95 <- matrix(0L, nrow = n, ncol = 1)
   for (i in 1:n){
-    matrix_99[i, 1] <- unlist(loss_VaR(VaR_list[[i]])$mean_loss_99)
-    matrix_95[i, 1] <- unlist(loss_VaR(VaR_list[[i]])$mean_loss_95)
+    matrix_99[i, 1] <- unlist(loss_VaR(VaR_list[[i]])$mean_loss_01)
+    matrix_95[i, 1] <- unlist(loss_VaR(VaR_list[[i]])$mean_loss_05)
   }
-  table_99 <- data.frame(matrix_99)
-  colnames(table_99) <- c("mean_VaR_loss")
-  rownames(table_99) <- names(VaR_list)
-  table_99 <- table_99 %>% arrange(mean_VaR_loss) # arange in ascending order
+  table_01 <- data.frame(matrix_99)
+  colnames(table_01) <- c("mean_VaR_loss")
+  rownames(table_01) <- names(VaR_list)
+  table_01 <- table_01 %>% arrange(mean_VaR_loss) # arange in ascending order
   
   
-  table_95 <- data.frame(matrix_95)
-  colnames(table_95) <- c("mean_VaR_loss")
-  rownames(table_95) <- names(VaR_list)
-  table_95 <- table_95 %>% arrange(mean_VaR_loss) 
-  return(list(table_99 = table_99, table_95 = table_95))
+  table_05 <- data.frame(matrix_95)
+  colnames(table_05) <- c("mean_VaR_loss")
+  rownames(table_05) <- names(VaR_list)
+  table_05 <- table_05 %>% arrange(mean_VaR_loss) 
+  return(list(table_01 = table_01, table_05 = table_05))
 }
 
 ## Don't run when importing
 if (sys.nframe() == 0) {
-  VaR_loss_ranking(test_VaR_list)$table_99
-  VaR_loss_ranking(test_VaR_list)$table_95
+  VaR_loss_ranking(test_VaR_list)$table_01
+  VaR_loss_ranking(test_VaR_list)$table_05
 }
 
 
@@ -576,8 +576,8 @@ if (sys.nframe() == 0) {
 ## Create class to return two lists in CPA_test function
 setClass(Class="CPA",
          representation(
-           VaR_99="list",
-           VaR_95="list"
+           VaR_01="list",
+           VaR_05="list"
          )
 )
 
@@ -601,77 +601,79 @@ CPA_test <- function(VaR1, VaR2, plrets = portfolio_plret_df[-c(1:1000),2]){
   
    
   ## 99%
-  d_ij_99 <- as.matrix(loss1$loss_99)-as.matrix(loss2$loss_99)#loss differential
-  T <- length(d_ij_99)
-  h_tminus1_99 <- cbind(matrix(1, ncol = 1, nrow = T-1), 
-                        matrix(d_ij_99[1:T-1], nrow = T-1, ncol = 1))
+  d_ij_01 <- as.matrix(loss1$loss_01)-as.matrix(loss2$loss_01)#loss differential
+  T <- length(d_ij_01)
+  h_tminus1_01 <- cbind(matrix(1, ncol = 1, nrow = T-1), 
+                        matrix(d_ij_01[1:T-1], nrow = T-1, ncol = 1))
   
   
   
-  lossdiff <- d_ij_99[2:T] # loss differential from 2nd observation onwards
+  lossdiff <- d_ij_01[2:T] # loss differential from 2nd observation onwards
   
-  reg_99 <- matrix(1, nrow = nrow(h_tminus1_99), ncol = ncol(h_tminus1_99))
-  for (jj in 1:2) reg_99[, jj] <- h_tminus1_99[, jj]*lossdiff
+  reg_01 <- matrix(1, nrow = nrow(h_tminus1_01), ncol = ncol(h_tminus1_01))
+  for (jj in 1:2) reg_01[, jj] <- h_tminus1_01[, jj]*lossdiff
   
   # since forecasting horizon is 1, test stat can be calculated as n*R^2
-  # from the regression of one on ht_minus1_99*lossdiff
-  fit_99 <- lm(matrix(1, nrow = T-1, ncol =1)~0+reg_99)
-  r2_99 <- summary(fit_99)$r.squared
+  # from the regression of one on ht_minus1_01*lossdiff
+  fit_01 <- lm(matrix(1, nrow = T-1, ncol =1)~0+reg_01)
+  r2_01 <- summary(fit_01)$r.squared
   n <- T-1-1+1 # n=T-tau-m1+1 in paper
-  test_stat_99 <- n*r2_99
+  test_stat_01 <- n*r2_01
   
   
   ## 95%
-  d_ij_95 <- as.matrix(loss1$loss_95)-as.matrix(loss2$loss_95)#loss differential
-  T <- length(d_ij_95)
-  h_tminus1_95 <- cbind(matrix(1, ncol = 1, nrow = T-1), 
-                        matrix(d_ij_95[1:T-1], nrow = T-1, ncol = 1))
+  d_ij_05 <- as.matrix(loss1$loss_05)-as.matrix(loss2$loss_05)#loss differential
+  T <- length(d_ij_05)
+  h_tminus1_05 <- cbind(matrix(1, ncol = 1, nrow = T-1), 
+                        matrix(d_ij_05[1:T-1], nrow = T-1, ncol = 1))
   
   
   
-  lossdiff <- d_ij_95[2:T] # loss differential from 2nd observation onwards
+  lossdiff <- d_ij_05[2:T] # loss differential from 2nd observation onwards
   
-  reg_95 <- matrix(1, nrow = nrow(h_tminus1_95), ncol = ncol(h_tminus1_95))
-  for (jj in 1:2) reg_95[, jj] <- h_tminus1_95[, jj]*lossdiff
+  reg_05 <- matrix(1, nrow = nrow(h_tminus1_05), ncol = ncol(h_tminus1_05))
+  for (jj in 1:2) reg_05[, jj] <- h_tminus1_05[, jj]*lossdiff
   
   # since forecasting horizon is 1, test stat can be calculated as n*R^2
-  # from the regression of one on ht_minus1_95*lossdiff
-  fit_95 <- lm(matrix(1, nrow = T-1, ncol =1)~0+reg_95)
-  r2_95 <- summary(fit_95)$r.squared
+  # from the regression of one on ht_minus1_05*lossdiff
+  fit_05 <- lm(matrix(1, nrow = T-1, ncol =1)~0+reg_05)
+  r2_05 <- summary(fit_05)$r.squared
   n <- T-1-1+1 # n=T-tau-m1+1 in paper
-  test_stat_95 <- n*r2_95
+  test_stat_05 <- n*r2_05
   
   ## Critical Values
-  crit_val_99 <- qchisq(0.95, 2)
-  crit_val_95 <- qchisq(0.95, 2)
+  crit_val_01 <- qchisq(0.95, 2)
+  crit_val_05 <- qchisq(0.95, 2)
   
   ## Calculate p-values
-  p_val_99 <- 1-pchisq(abs(test_stat_99),2)
-  p_val_95 <- 1-pchisq(abs(test_stat_95),2)
+  p_val_01 <- 1-pchisq(abs(test_stat_01),2)
+  p_val_05 <- 1-pchisq(abs(test_stat_05),2)
   
-  mean_diff_loss_99 <- loss1$mean_loss_99-loss2$mean_loss_99
-  signif_99 <- p_val_99<0.05
-  ifelse(mean_diff_loss_99<0, c(better_99 <- "row"), c(better_99 <- "col"))
+  mean_diff_loss_01 <- loss1$mean_loss_01-loss2$mean_loss_01
+  signif_01 <- p_val_01<0.05
+  ifelse(mean_diff_loss_01<0, c(better_01 <- "row"), c(better_01 <- "col"))
   
-  mean_diff_loss_95 <- loss1$mean_loss_95-loss2$mean_loss_95
-  signif_95 <- p_val_95<0.05
-  ifelse(mean_diff_loss_95<0, c(better_95 <- "row"), c(better_95 <- "col"))
+  mean_diff_loss_05 <- loss1$mean_loss_05-loss2$mean_loss_05
+  signif_05 <- p_val_05<0.05
+  ifelse(mean_diff_loss_05<0, c(better_05 <- "row"), c(better_05 <- "col"))
   
-  if (signif_99 == TRUE){
-    message(better_99, " performs significantly better")
+
+  
+  if (signif_01 == TRUE){
+    message(better_01, " performs significantly better")
   }
   
-  if (signif_95 == TRUE){
-    message(better_95, " performs significantly better")
+  if (signif_05 == TRUE){
+    message(better_05, " performs significantly better")
   }
   
   return(new("CPA", 
-             VaR_99 = list(test_stat_99 = test_stat_99, 
-                           crit_val_99 = crit_val_99, p_val_99 = p_val_99, 
-                           signif_99 = signif_99, better_99 = better_99),
-             VaR_95 = list(test_stat_95 = test_stat_95, 
-                           crit_val_95 = crit_val_95, p_val_95 = p_val_95, 
-                           signif_95 = signif_95, better_95 = better_95)
+             VaR_01 = list(test_stat_01 = test_stat_01, 
+                           crit_val_01 = crit_val_01, p_val_01 = p_val_01, 
+                           signif_01 = signif_01, better_01 = better_01),
+             VaR_05 = list(test_stat_05 = test_stat_05, 
+                           crit_val_05 = crit_val_05, p_val_05 = p_val_05, 
+                           signif_05 = signif_05, better_05 = better_05)
   ))
 }
 
@@ -692,8 +694,8 @@ if (sys.nframe() == 0) {
 #' @return list of tables for the two VaR levels. Each entry in the table includes
 #' the p-value and which model performed better (if one did)
 CPA_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),2]){
-  CPA_matrix_99 <- matrix(nrow = length(VaR_list)-1, ncol = length(VaR_list)-1)
-  CPA_matrix_95 <- matrix(nrow = length(VaR_list)-1, ncol = length(VaR_list)-1)
+  CPA_matrix_01 <- matrix(nrow = length(VaR_list)-1, ncol = length(VaR_list)-1)
+  CPA_matrix_05 <- matrix(nrow = length(VaR_list)-1, ncol = length(VaR_list)-1)
   rows <- VaR_list[-length(VaR_list)]
   cols <- VaR_list[-1]
   
@@ -701,33 +703,33 @@ CPA_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),2]){
   for (i in seq_along(rows)){
     for (j in seq_along(cols)){
       if (i<=j){
-        p_val_99 <- CPA_test(rows[[i]], cols[[j]], 
-                             plrets = plrets)@VaR_99$p_val_99
-        better_99 <- CPA_test(rows[[i]], cols[[j]], 
-                              plrets = plrets)@VaR_99$better_99
+        p_val_01 <- CPA_test(rows[[i]], cols[[j]], 
+                             plrets = plrets)@VaR_01$p_val_01
+        better_01 <- CPA_test(rows[[i]], cols[[j]], 
+                              plrets = plrets)@VaR_01$better_01
         
-        p_val_95 <- CPA_test(rows[[i]], cols[[j]], 
-                             plrets = plrets)@VaR_95$p_val_95
-        better_95 <- CPA_test(rows[[i]], cols[[j]], 
-                              plrets = plrets)@VaR_95$better_95
+        p_val_05 <- CPA_test(rows[[i]], cols[[j]], 
+                             plrets = plrets)@VaR_05$p_val_05
+        better_05 <- CPA_test(rows[[i]], cols[[j]], 
+                              plrets = plrets)@VaR_05$better_05
         
-        CPA_matrix_99[i,j] <- paste(as.character(round(as.numeric(p_val_99),3)),
-                                    better_99, sep  =";")
-        CPA_matrix_95[i,j] <- paste(as.character(round(as.numeric(p_val_95),3)),
-                                    better_95, sep  =";")
+        CPA_matrix_01[i,j] <- paste(as.character(round(as.numeric(p_val_01),3)),
+                                    better_01, sep  ="; ")
+        CPA_matrix_05[i,j] <- paste(as.character(round(as.numeric(p_val_05),3)),
+                                    better_05, sep  ="; ")
         }
     }
   }
-  CPA_table_99 <- data.frame(CPA_matrix_99)
-  colnames(CPA_table_99) <- names(cols)
-  rownames(CPA_table_99) <- names(rows)
+  CPA_table_01 <- data.frame(CPA_matrix_01)
+  colnames(CPA_table_01) <- names(cols)
+  rownames(CPA_table_01) <- names(rows)
   
-  CPA_table_95 <- data.frame(CPA_matrix_95)
-  colnames(CPA_table_95) <- names(cols)
-  rownames(CPA_table_95) <- names(rows)
+  CPA_table_05 <- data.frame(CPA_matrix_05)
+  colnames(CPA_table_05) <- names(cols)
+  rownames(CPA_table_05) <- names(rows)
   
-  return(list(CPA_table_99 = CPA_table_99,
-              CPA_table_95 = CPA_table_95))
+  return(list(CPA_table_01 = CPA_table_01,
+              CPA_table_05 = CPA_table_05))
 }
 
 ## Don't run when importing

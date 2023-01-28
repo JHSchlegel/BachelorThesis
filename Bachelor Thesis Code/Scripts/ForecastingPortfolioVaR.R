@@ -235,9 +235,9 @@ dcc_mu_pf <- apply(dcc_mu_stocks, 1, function(x) 100*log(mean(exp(x/100)-1)+1))
 
   
 multi_dcc_VaR <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)])
-multi_dcc_VaR$alpha_1perc <- -dcc_mu_pf + sapply(dcc_sigma_pf, function(x) 
+multi_dcc_VaR$alpha_1perc <- dcc_mu_pf + sapply(dcc_sigma_pf, function(x) 
   x*qnorm(0.01, 0, 1, lower.tail = TRUE))
-multi_dcc_VaR$alpha_5perc <-  -dcc_mu_pf +sapply(dcc_sigma_pf, function(x) 
+multi_dcc_VaR$alpha_5perc <-  dcc_mu_pf +sapply(dcc_sigma_pf, function(x) 
   x*qnorm(0.05, 0, 1, lower.tail = TRUE))
 
 
@@ -269,7 +269,7 @@ for (i in 1:n.window) {
 dcc_NGARCH_mu_pf <- apply(dcc_NGARCH_mu_stocks, 1, function(x) 100*log(mean(exp(x/100)-1)+1))
 
 multi_dcc_NGARCH_VaR <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)])
-multi_dcc_NGARCH_VaR$alpha_1perc <- -dcc_NGARCH_mu_pf+sapply(dcc_NGARCH_sigma_pf, function(x) x*qnorm(0.01, 0, 1, lower.tail = TRUE))
-multi_dcc_NGARCH_VaR$alpha_5perc <- -dcc_NGARCH_mu_pf+sapply(dcc_NGARCH_sigma_pf, function(x) x*qnorm(0.05, 0, 1, lower.tail = TRUE))
+multi_dcc_NGARCH_VaR$alpha_1perc <- dcc_NGARCH_mu_pf+sapply(dcc_NGARCH_sigma_pf, function(x) x*qnorm(0.01, 0, 1, lower.tail = TRUE))
+multi_dcc_NGARCH_VaR$alpha_5perc <- dcc_NGARCH_mu_pf+sapply(dcc_NGARCH_sigma_pf, function(x) x*qnorm(0.05, 0, 1, lower.tail = TRUE))
 head(multi_dcc_NGARCH_VaR)
 write.csv(multi_dcc_NGARCH_VaR, "Data\\VaR\\Multi_dcc_NGARCH_GARCH.csv", row.names = FALSE)
