@@ -186,6 +186,12 @@ write.csv(uni_skewt_NGARCH_VaR, "Data\\VaR\\Uni_Skewt_NGARCH.csv",
 # MN(k, g) as in Mixed Normal Conditional Heteroskedasticity by Haas, Mittnik
 # and Paolella (2004). doi: https://doi.org/10.1093/JJFINEC/NBH009
 
+# default method in MSGARCH is "BFGS" which sometimes caused errors
+f_custom_optim <- function(vPw, f_nll, spec, data, do.plm){
+  out <- stats::optim(vPw, f_nll, spec = spec, data = data,
+                      do.plm = do.plm, method = "L-BFGS-B")
+  return(out)
+}
 
 #' Title
 #'
@@ -213,8 +219,11 @@ mn_k_g_garch <- function(k, g){
   message("===================================================================")
   for (i in 1:n_windows){
     # rolling window fitting
-    fit_ml <- FitMCMC(spec = mn_k_g_garch_spec,
-                    data = portfolio_plret_ts[i:(1000+i-1)])
+    fit_ml <- FitML(
+      spec = mn_k_g_garch_spec, 
+      data = portfolio_plret_ts[i:(1000+i-1)],
+      ctr = list(OptimFUN = f_custom_optim)
+      )
     mn_k_g_garch_VaR[i,] <- Risk(fit_ml, alpha = c(0.01, 0.05), nahead = 1)$VaR
     # mn_k_g_garch_ES[i,] <- Risk(fit_ml, alpha = c(0.01, 0.05), nahead = 1)$ES
     message("completed: ", i, " of ", n_windows)
@@ -225,11 +234,11 @@ mn_k_g_garch <- function(k, g){
   invisible(mn_k_g_garch_VaR_df)
 }
 
-mn_2_2_garch <- mn_k_g_garch(2,2) # error at 940
+mn_2_2_garch <- mn_k_g_garch(2,2)
 mn_3_2_garch <- mn_k_g_garch(3,2)
 mn_3_3_garch <- mn_k_g_garch(3,3)
 rugarch::VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], 
-                 ms22garch_VaR[,1])
+                 mn_2_2_garch[,2])
 
 write.csv(mn_2_2_garch, "Data\\VaR\\Uni_MN_2_2_GARCH.csv", row.names = FALSE)
 write.csv(mn_3_2_garch, "Data\\VaR\\Uni_MN_3_2_GARCH.csv", row.names = FALSE)
