@@ -2,6 +2,8 @@
 ############################### Copula GARCH ###############################
 #==========================================================================#
 
+# R version 4.2.2 (2022-10-31 ucrt)
+
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(rugarch)) install.packages("rugarch") # for univariate GARCH models
 # rugarch allows for parallel programming using parallel package
@@ -256,6 +258,9 @@ head(coefs_df); head(error_df)
 OLS_table <- data.frame(coefs_df, adj_R2 = adj_R2, JB = JB) %>% round(3)
 OLS_table
 
+source("Scripts/EDA.R") # for summary_statistics function
+summary_statistics(error_df) #highly non-normal residuals
+
 ## Plot and investigate error distribution
 error_df[,-1] %>% 
   gather() %>% 
@@ -347,7 +352,7 @@ head(error_vec_resampled)
 
 #' Copula GARCH with Factor Returns
 #'
-#' @param dynamic boolean: whether DCC-GARCH corr matrix is used for Copula 
+#' @param DCC_corr_mat boolean: whether DCC-GARCH corr matrix is used for Copula 
 #' fitting or not
 #' @param pseudo_obs boolean: whether pseudo observations or PIT should be used
 #' @param copula_dist copula distribution: choose from normal, t and skew-t 
@@ -355,7 +360,8 @@ head(error_vec_resampled)
 #'
 #' @return dataframe with dates in first column, 0.01 VaR in second column and
 #' 0.05 VaR in third column
-fortin_cgarch_VaR <- function(dynamic, pseudo_obs = TRUE, ugarch_dist = c("norm", "sstd"),
+fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE, 
+                              ugarch_dist = c("norm", "sstd"),
                               ugarch_model = c("GARCH", "NGARCH"),
                               copula_dist = c("norm", "t", "skewt")){
   N_sim <- 200000 # nr. of random draws from copula
@@ -385,7 +391,7 @@ fortin_cgarch_VaR <- function(dynamic, pseudo_obs = TRUE, ugarch_dist = c("norm"
   
   VaR_cop <- matrix(0L, nrow = n_window, ncol = 2) # empty matrix to store VaR
   
-  for (i in 1:n_window){
+  for (i in 1:5){#n_window){
     cl <- makePSOCKcluster(numcores)
     dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
     dcc_fcst <- dccforecast(dcc_fit, cluster = cl)
@@ -398,43 +404,49 @@ fortin_cgarch_VaR <- function(dynamic, pseudo_obs = TRUE, ugarch_dist = c("norm"
     ## Extract distribution of marginals (will be used later on 
     ## for quantile transformation)
     marginal_dist <- dcc_fit@model$umodel$modeldesc$distribution
-    # for (k in 1:4){
-    #   # get skewness parameter and store as skew_k
-    #   skew <- paste("skew", k, sep = "_")
-    #   assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
-    #                       dcc_fit@model$mpars["skew", k], 
-    #                       0))
-    #   
-    #   # get shape parameter and store as shape_k
-    #   shape <- paste("shape", k, sep = "_")
-    #   assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
-    #                        dcc_fit@model$mpars["shape", k], 
-    #                        0))
-    # }
-    u_res <- matrix(0L, nrow = dim(garch_dcc_res)[1], ncol = 4)
-    for (k in 1:4){
-      # get skewness parameter and store as skew_k
-      skew <-  ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
-                      dcc_fit@model$mpars["skew", k], 
-                      0)
-      skew_k <- paste("skew", k, sep = "_")
-      assign(skew_k, skew) # name skew_1, ..., skew_4 to reuse for qdist later
-      
-      # get shape parameter and store as shape_k
-      shape <- ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
-                      dcc_fit@model$mpars["shape", k], 
-                      0)
-      shape_k <- paste("shape", k, sep = "_")
-      assign(shape_k, shape)  # name shape_1, ..., shape_4 to reuse for qdist 
-      
-      ## PIT to get u's that lie within unit cube
-      u_res[,k] <- rugarch::pdist(distribution = marginal_dist[k], 
-                                  q  = garch_dcc_res[,k], 
-                                  mu = 0,
-                                  sigma = 1,
-                                  shape = shape,
-                                  skew = skew)
+    if (pseudo_obs == TRUE){
+      for (k in 1:4){
+        # get skewness parameter and store as skew_k
+        skew <- paste("skew", k, sep = "_")
+        assign(skew, ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0,
+                            dcc_fit@model$mpars["skew", k],
+                            0))
+        
+        # get shape parameter and store as shape_k
+        shape <- paste("shape", k, sep = "_")
+        assign(shape, ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0,
+                             dcc_fit@model$mpars["shape", k],
+                             0))
+      }
     }
+    
+    else {
+      u_res <- matrix(0L, nrow = dim(garch_dcc_res)[1], ncol = 4)
+      for (k in 1:4){
+        # get skewness parameter and store as skew_k
+        skew <-  ifelse(dcc_fit@model$umodel$modelinc["skew", k]>0, 
+                        dcc_fit@model$mpars["skew", k], 
+                        0)
+        skew_k <- paste("skew", k, sep = "_")
+        assign(skew_k, skew) # name skew_1, ..., skew_4 to reuse for qdist later
+        
+        # get shape parameter and store as shape_k
+        shape <- ifelse(dcc_fit@model$umodel$modelinc["shape", k]>0, 
+                        dcc_fit@model$mpars["shape", k], 
+                        0)
+        shape_k <- paste("shape", k, sep = "_")
+        assign(shape_k, shape)  # name shape_1, ..., shape_4 to reuse for qdist 
+        
+        ## PIT to get u's that lie within unit cube
+        u_res[,k] <- rugarch::pdist(distribution = marginal_dist[k], 
+                                    q  = garch_dcc_res[,k], 
+                                    mu = 0,
+                                    sigma = 1,
+                                    shape = shape,
+                                    skew = skew)
+      }
+    }
+    
     
     
     ## Extract forecasted cov matrix and mean
@@ -446,7 +458,6 @@ fortin_cgarch_VaR <- function(dynamic, pseudo_obs = TRUE, ugarch_dist = c("norm"
     ## unit cube
     pobs_res <- apply(garch_dcc_res, 2, function(x) copula::pobs(x))
     
-    
     ## Fit copula
     
     # use pobs or PIT values for fitting depending on user input
@@ -454,7 +465,7 @@ fortin_cgarch_VaR <- function(dynamic, pseudo_obs = TRUE, ugarch_dist = c("norm"
     # start values for skew t
     start <- list(rho = numeric(6), delta=numeric(4), nu = 6)
     
-    if (dynamic == FALSE){
+    if (DCC_corr_mat == FALSE){
       cop_fit <- switch(copula_dist,
           "norm" = fitCopula(
             normalCopula(dim = 4), data = data
@@ -462,12 +473,12 @@ fortin_cgarch_VaR <- function(dynamic, pseudo_obs = TRUE, ugarch_dist = c("norm"
           "t" = fitCopula(
             tCopula(dim = 4, df.fixed = FALSE), data = data
           ),
-          "skewt" = stcop.mle(data, start=start, control=list(reltol=1e-4))
+          "skewt" = stcop.mle(data, start=start, control = list(reltol=1e-4))
       )
     }
     
     
-    if (dynamic == TRUE){
+    if (DCC_corr_mat == TRUE){
       cop_fit <- switch(copula_dist,
           "norm" = fitCopula(
             normalCopula(dim = 4, param = dcc_fcst_cor[lower.tri(dcc_fcst_cor)], 
@@ -548,34 +559,30 @@ fortin_cgarch_VaR <- function(dynamic, pseudo_obs = TRUE, ugarch_dist = c("norm"
 
 
 
-VaR_cop_norm_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE,
-                                     copula_dist = "norm")
-write.csv(VaR_cop_norm_df, 
-          "Data\\VaR\\Fortin_cop_norm.csv", row.names = FALSE)
+VaR_cop_norm_NGARCH_df <- fortin_cgarch_VaR(
+  DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "sstd",
+  ugarch_model = "NGARCH", copula_dist = "norm"
+)
 
-
-
-VaR_cop_norm_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, pseudo_obs = TRUE,
-                                         copula_dist = "norm")
-write.csv(VaR_cop_norm_dyn_df, 
-          "Data\\VaR\\Fortin_cop_norm_dyn.csv", row.names = FALSE)
+write.csv(VaR_cop_norm_NGARCH_df, 
+          "Data\\VaR\\Fortin_cop_norm_NGARCH.csv", row.names = FALSE)
 
 
 
 
-VaR_cop_t_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE,
-                                  copula_dist = "t")
-write.csv(VaR_cop_t_df, 
+
+VaR_cop_t_NGARCH_df <- fortin_cgarch_VaR(
+  DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "sstd",
+  ugarch_model = "NGARCH", copula_dist = "t"
+)
+
+write.csv(VaR_cop_t_NGARCH_df, 
           "Data\\VaR\\Fortin_cop_t.csv", row.names = FALSE)
 
 
-VaR_cop_t_dyn_df <- fortin_cgarch_VaR(dynamic = TRUE, pseudo_obs = TRUE,
-                                      copula_dist = "t")
-write.csv(VaR_cop_t_dyn_df, 
-          "Data\\VaR\\Fortin_cop_t_dyn.csv", row.names = FALSE)
 
-VaR_cop_skewt_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE,
-                                      copula_dist = "skewt")
+VaR_cop_skewt_df <- fortin_cgarch_VaR(DCC_corr_mat = FALSE, pseudo_obs = F,
+                                      ugarch_dist = "norm",copula_dist = "skewt")
 write.csv(VaR_cop_skewt_df, 
           "Data\\VaR\\Fortin_cop_skewt.csv", row.names = FALSE)
 
@@ -585,27 +592,24 @@ write.csv(VaR_cop_skewt_df,
 
 
 
-VaR_cop_norm_norm_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
-                                         copula_dist = "norm")
-
-write.csv(VaR_cop_norm_norm_df, 
-          "Data\\VaR\\Fortin_cop_norm_norm.csv", row.names = FALSE)
 
 
 
-VaR_cop_norm_sGARCH_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
-                                            ugarch_model = "GARCH",
-                                          copula_dist = "norm")
+
+VaR_cop_norm_sGARCH_df <- fortin_cgarch_VaR(
+  DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
+  ugarch_model = "GARCH", copula_dist = "norm"
+  )
 
 write.csv(VaR_cop_norm_sGARCH_df, 
           "Data\\VaR\\Fortin_cop_norm_sGARCH.csv", row.names = FALSE)
 
 
 
-VaR_cop_t_sGARCH_df <- fortin_cgarch_VaR(dynamic = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
-                                            ugarch_model = "GARCH",
-                                            copula_dist = "t")
-
+VaR_cop_t_sGARCH_df <- fortin_cgarch_VaR(
+  DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
+  ugarch_model = "GARCH", copula_dist = "t"
+  )
 write.csv(VaR_cop_t_sGARCH_df, 
           "Data\\VaR\\Fortin_cop_t_sGARCH.csv", row.names = FALSE)
 
