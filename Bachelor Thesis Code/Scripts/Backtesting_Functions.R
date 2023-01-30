@@ -2,16 +2,30 @@
 ########################## Backtesting Functions  ##########################
 #==========================================================================#
 
+# R version 4.2.2 (2022-10-31 ucrt)
+
 # !!!!! Important Note !!!!! #
 # The code for the Conditional Predictive Ability Test by Giacomini and White
 # (2006) is based on the Matlab code provided by the authors. I translated it
 # to R such that it covers my specific case. Other forecasting horizons etc.
-# are not implemented. The Matlab code of the Giacomini and white can be found
+# are not implemented. The Matlab code of the Giacomini and White can be found
 # here:
 # http://www.runmycode.org/companion/view/88
 
-# I compared my implementation with theirs for a few different pairs of VaR 
-# losses and got the same results
+# I compared my implementation with theirs for different models as well as
+# different loss functions and always got the same result
+
+# For the LR tests of Christoffersen I have consulted the GitHub page for the
+# rugarch package to compare my own implementation with the rugarch one. I
+# wanted to implement it on my own since implementing sth on my own in R
+# generally helps me understand concepts better. After comparing my LR tests
+# to the rugarch GitHub, I made slight adjustments inspired by the rugarch
+# GitHub: 
+# 1. using the table function for the LR test of independence
+# 2. for numerical reasons: calculating the test statistic of the LR
+# test of conditional coverage as the sum of LR_uc and LR_ind instead of 
+# calculating it using the corresponding likelihood functions
+
 
 #------------------------------------#
 ########### Importing Data ###########
@@ -515,19 +529,6 @@ if (sys.nframe() == 0) {
   Uni_Normal_loss <- loss_VaR(Uni_Normal_GARCH_VaR)
   Uni_Normal_loss$mean_loss_01
   Uni_t_GJR_loss$mean_loss_01
-}
-
-
-## Don't run when importing
-if (sys.nframe() == 0) {
-  ## Compare w/ VaRloss function from rugarch package:
-  all.equal(VaRloss(0.95, portfolio_plret_df[-c(1:1000),2], 
-                    Uni_Normal_GARCH_VaR[,3]), 
-            as.numeric(as.matrix(100*Uni_Normal_loss$loss_05)))
-  all.equal(VaRloss(0.95, portfolio_plret_df[-c(1:1000),2], 
-                    Uni_t_GJR_GARCH_VaR[,3]), 
-            as.numeric(as.matrix(100*Uni_t_GJR_loss$loss_05)))
-  # rugarch VaRloss is 100* the loss calculated above
 }
 
 

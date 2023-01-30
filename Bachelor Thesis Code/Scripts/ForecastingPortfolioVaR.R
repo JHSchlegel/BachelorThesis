@@ -2,6 +2,8 @@
 ########################## Forecasting Portfolio VaR ##########################
 #=============================================================================#
 
+# R version 4.2.2 (2022-10-31 ucrt)
+
 if (!require(parallel)) install.packages("parallel") # parallel computing
 if (!require(rugarch)) install.packages("rugarch") # univariate GARCH models
 if (!require(rmgarch)) install.packages("rmgarch") # dcc garch
@@ -204,11 +206,11 @@ f_custom_optim <- function(vPw, f_nll, spec, data, do.plm){
 #' Diagonal Mix-Normal GARCH
 #'
 #' Implements MN(k,g) GARCH models as specified in Haas, Mittnik and 
-#' Paolella (2004)
+#' Paolella (2004). We will restrict ourselves to the MN(k,k) case i.e.
+#' wheree all of the k density components follow a sGARCH process and 0
+#' components are restricted to be constant
 #'
 #' @param k how many component densities
-#' @param g how many of component densities follow sGARCH process. The remaining
-#' k-g components are restricted to be constant
 #'
 #' @return dataframe of VaR with date in first column, 1% VaR in second column
 #' and 5% VaR in third column
@@ -219,31 +221,35 @@ mn_k_g_garch <- function(k, g){
   # mn_k_g_garch_ES <- matrix(0L, nrow = n_windows, ncol = 2)
   
   
-  mn_k_g_garch_spec <- CreateSpec(
+  mn_k_g_garch_spec <- MSGARCH::CreateSpec(
     # g GARCH terms, k-g constant
-    variance.spec = list(model = rep("sGARCH", g)), 
+    variance.spec = list(model = rep("sGARCH", k)), 
     # mixture of k normal distributions
     distribution.spec = list(distribution = rep("norm", k)),
     switch.spec = list(do.mix = TRUE) # do.mix for mixed normal GARCH (diagonal)
     )
   
   message("===================================================================")
-  message("                                MN(",k,",",g,")                    ")
+  message("                                MN(",k,",",k,")                    ")
   message("===================================================================")
-  for (i in 316:n_windows){
+  for (i in 1:n_windows){
     # rolling window fitting
     fit_ml <- tryCatch(
-      {MSGARCH::FitML(
-      spec = mn_k_g_garch_spec, 
-      data = portfolio_plret_ts[i:(1000+i-1)],
-      ctr = list(OptimFUN = f_custom_optim)
-      )},
-      error = function(cond) {
+      {
         MSGARCH::FitML(
           spec = mn_k_g_garch_spec, 
           data = portfolio_plret_ts[i:(1000+i-1)]
-        ) # use BFGS instead of "L-BFGS-B"
+      )},
+      error = function(cond) {
+        fit <- MSGARCH::FitML(
+          spec = mn_k_g_garch_spec, 
+          data = portfolio_plret_ts[i:(1000+i-1)],
+          ctr = list(OptimFUN = f_custom_optim)
+        ) 
+        message('use L-BFGS-B instead of BFGS')
+        return(fit)
       })
+    # print(summary(fit_ml))
     mn_k_g_garch_VaR[i,] <- MSGARCH::Risk(fit_ml, alpha = c(0.01, 0.05), 
                                           nahead = 1)$VaR
     # mn_k_g_garch_ES[i,] <- Risk(fit_ml, alpha = c(0.01, 0.05), nahead = 1)$ES
@@ -259,17 +265,10 @@ mn_k_g_garch <- function(k, g){
 mn_2_2_garch <- mn_k_g_garch(2,2)
 write.csv(mn_2_2_garch, "Data\\VaR\\Uni_MN_2_2_GARCH.csv", row.names = FALSE)
 
-## MN(3,2)
-mn_3_2_garch <- mn_k_g_garch(3,2)
-write.csv(mn_3_2_garch, "Data\\VaR\\Uni_MN_3_2_GARCH.csv", row.names = FALSE)
 
 ## MN(3,3)
-mn_3_3_garch <- mn_k_g_garch(3,3) #316
-write.csv(mn_3_3_garch, "Data\\VaR\\Uni_MN_3_2_GARCH.csv", row.names = FALSE)
-
-rugarch::VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2], 
-                 mn_2_2_garch[,2])
-
+mn_3_3_garch <- mn_k_g_garch(3,3) 
+write.csv(mn_3_3_garch, "Data\\VaR\\Uni_MN_3_3_GARCH.csv", row.names = FALSE)
 
 
 
@@ -278,6 +277,10 @@ rugarch::VaRTest(alpha = 0.01, portfolio_plret_df[-c(1:1000),2],
 #--------------------------------------------------------#
 
 portfolio.weights <- rep(1/10, 10) # weight vector for 1/N portfolio
+
+window_size <- 1000
+n_windows <- 5#dim(portfolio_plret_df)[1]-window_size # nr of windows
+
 # no ARFIMA, just use unconditional mean
 dcc_meanModel <- list(armaOrder = c(0,0), include.mean = TRUE) 
 dcc_varModel <- list(model = "sGARCH", garchOrder = c(1,1)) # variance model
@@ -288,14 +291,16 @@ dcc_uspec <- ugarchspec(
   )
 # model all stocks with same mean model and variance model
 dcc_mspec <- multispec(replicate(10, dcc_uspec))
+
 # normal DCC GARCH(1,1)
 dcc_spec <- dccspec(dcc_mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), 
                     distribution =  "mvnorm")
 
 cl <- makePSOCKcluster(numcores)
 multi_dcc_roll <- dccroll(
-  spec = dcc_spec, data = stocks_plret_ts[c(1:1005),], n.ahead = 1, n.start = 1000, 
-  refit.every = 1, refit.window = "moving", window.size = 1000,  cluster = cl
+  spec = dcc_spec, data = stocks_plret_ts[c(1:1005),], n.ahead = 1, 
+  n.start = 1000, refit.every = 1, refit.window = "moving", window.size = 1000,
+  cluster = cl
   )
 stopCluster(cl)
 

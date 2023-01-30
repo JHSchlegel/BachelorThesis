@@ -2,6 +2,8 @@
 ############################### Backtesting ###############################
 #=========================================================================#
 
+# R version 4.2.2 (2022-10-31 ucrt)
+
 ## Import my Backtesting Functions
 source("Scripts/Backtesting_Functions.R")
 # see Backtesting_Functions.R for function documentation
@@ -26,6 +28,13 @@ Uni_Skewt_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_GJR_GARCH.csv",
                                     header = TRUE)
 Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv", 
                                  header = TRUE)
+Uni_MN_2_2_GARCH_vaR <- read.csv("./Data/VaR/Uni_MN_2_2_GARCH.csv", 
+                                header = TRUE)
+Uni_MN_3_2_GARCH_vaR <- read.csv("./Data/VaR/Uni_MN_3_2_GARCH.csv", 
+                                 header = TRUE)
+Uni_MN_3_3_GARCH_vaR <- read.csv("./Data/VaR/Uni_MN_3_3_GARCH.csv", 
+                                 header = TRUE)
+
 
 # Multivariate
 Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
@@ -55,6 +64,8 @@ all_VaR_list <- list(Normal_GARCH = Uni_Normal_GARCH_VaR,
                      t_GJR = Uni_t_GJR_GARCH_VaR,
                      Skewt_GJR = Uni_Skewt_GJR_GARCH_VaR,
                      Skewt_NGARCH = Uni_Skewt_NGARCH_VaR,
+                     MN_2_2_GARCH = Uni_MN_2_2_GARCH_vaR,
+                     MN_3_3_GARCH = Uni_MN_3_2_GARCH_vaR,
                      Normal_DCC_GARCH = Multi_DCC_GARCH_VaR,
                      Fortin_Normal_NGARCH = Fortin_Normal_NGARCH_VaR,
                      Fortin_Normal_sGARCH = Fortin_Normal_sGARCH_VaR,
@@ -98,6 +109,18 @@ VaR_exceed_plot(Uni_Skewt_NGARCH_VaR, 3, portfolio_plret_df, VaR_percentile = 5,
                 "skew-t NGARCH")
 VaR_exceed_plot(Uni_Skewt_NGARCH_VaR, 2, portfolio_plret_df, VaR_percentile = 1,
                 "skew-t NGARCH")
+
+## MN(2,2)
+VaR_exceed_plot(Uni_MN_2_2_GARCH_vaR, 3, portfolio_plret_df, VaR_percentile = 5,
+                "MN(2,2)")
+VaR_exceed_plot(Uni_MN_2_2_GARCH_vaR, 2, portfolio_plret_df, VaR_percentile = 1,
+                "MN(2,2)")
+## MN(3,3)
+VaR_exceed_plot(Uni_MN_3_3_GARCH_vaR, 3, portfolio_plret_df, VaR_percentile = 5,
+                "MN(3,3)")
+VaR_exceed_plot(Uni_MN_3_3_GARCH_vaR, 2, portfolio_plret_df, VaR_percentile = 1,
+                "MN(3,3)")
+
 
 ## Normal DCC:
 VaR_exceed_plot(Multi_DCC_GARCH_VaR, 3, portfolio_plret_df, VaR_percentile = 5,
@@ -165,6 +188,7 @@ passed_LRtests_VaR_list_01 <- list(
   Fortin_t_sGARCH_VaR = Fortin_t_sGARCH_VaR,
   COMFORT_MVG_CCC_GJR = COMFORT_MVG_CCC_GJR_VaR,
   COMFORT_MVG_CCC_sGARCH = COMFORT_MVG_CCC_sGARCH_VaR)
+
 # list of 5% VaR estimates that passed LR tests
 passed_LRtests_VaR_list_05 <- list(
   Fortin_Normal_sGARCH = Fortin_Normal_sGARCH_VaR,
