@@ -1,3 +1,10 @@
+#===========================================================================#
+############################### Skew-t Copula ###############################
+#===========================================================================#
+
+
+# R version 4.2.2 (2022-10-31 ucrt)
+
 
 # https://www.semanticscholar.org/paper/Maximum-likelihood-estimation-of-skew-t-copula-Yoshiba/30350f710764f2261f1e3c2c113c2df53d0b699d?p2df
 # the original code caused Omega to be non-symmetric for dimensions >3 in 
