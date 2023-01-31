@@ -214,7 +214,7 @@ f_custom_optim <- function(vPw, f_nll, spec, data, do.plm){
 #'
 #' @return dataframe of VaR with date in first column, 1% VaR in second column
 #' and 5% VaR in third column
-mn_k_g_garch <- function(k, g){
+mn_k_g_garch <- function(k){
   window_size <- 1000
   n_windows <- dim(portfolio_plret_df)[1]-window_size
   mn_k_g_garch_VaR <- matrix(0L, nrow = n_windows, ncol = 2)
@@ -262,12 +262,12 @@ mn_k_g_garch <- function(k, g){
 }
 
 ## MN(2,2)
-mn_2_2_garch <- mn_k_g_garch(2,2)
+mn_2_2_garch <- mn_k_g_garch(2)
 write.csv(mn_2_2_garch, "Data\\VaR\\Uni_MN_2_2_GARCH.csv", row.names = FALSE)
 
 
 ## MN(3,3)
-mn_3_3_garch <- mn_k_g_garch(3,3) 
+mn_3_3_garch <- mn_k_g_garch(3) 
 write.csv(mn_3_3_garch, "Data\\VaR\\Uni_MN_3_3_GARCH.csv", row.names = FALSE)
 
 
@@ -276,10 +276,18 @@ write.csv(mn_3_3_garch, "Data\\VaR\\Uni_MN_3_3_GARCH.csv", row.names = FALSE)
 ########### Multivariate Normal DCC-GARCH(1,1) ###########
 #--------------------------------------------------------#
 
+# due to problems with reproducibility when using all 10 stocks with dccfit,
+# dccforecast and/or dccroll, we will not use the VaR estimates from here
+# for backtesting and instead will use those that were produced using the Matlab 
+# CVaR_COMFORT_singleWindow function provided by Soros
+
+# these issues were only present here and not in the fortin_cgarch function
+# since there the dcc garch model only had to be fit to 4 dims and there were
+# no convergence issues
+
+
 portfolio.weights <- rep(1/10, 10) # weight vector for 1/N portfolio
 
-window_size <- 1000
-n_windows <- 5#dim(portfolio_plret_df)[1]-window_size # nr of windows
 
 # no ARFIMA, just use unconditional mean
 dcc_meanModel <- list(armaOrder = c(0,0), include.mean = TRUE) 
@@ -298,9 +306,9 @@ dcc_spec <- dccspec(dcc_mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1),
 
 cl <- makePSOCKcluster(numcores)
 multi_dcc_roll <- dccroll(
-  spec = dcc_spec, data = stocks_plret_ts[c(1:1005),], n.ahead = 1, 
+  spec = dcc_spec, data = stocks_plret_ts, n.ahead = 1, 
   n.start = 1000, refit.every = 1, refit.window = "moving", window.size = 1000,
-  cluster = cl
+  cluster = cl, solver.control = list(tol=1e-12, maxit = 20000)
   )
 stopCluster(cl)
 
@@ -313,7 +321,7 @@ dcc_mu_stocks <- matrix(NA, nrow = n_windows, ncol = 10)
 dcc_cov <- rcov(multi_dcc_roll) 
 
 ## calculating portfolio variance and extracting means of stocks
-for (i in 1:5){#n_windows) {
+for (i in 1:n_windows) {
   dcc_sigma_pf[i] <- portfolio.weights %*% dcc_cov[,,i] %*% portfolio.weights
   dcc_mu_stocks[i,] <- multi_dcc_roll@mforecast[[i]]@mforecast$mu
 }
@@ -329,5 +337,6 @@ multi_dcc_VaR$alpha_5perc <-  dcc_mu_pf +sapply(dcc_sigma_pf, function(x)
 
 
 head(multi_dcc_VaR)
-write.csv(multi_dcc_VaR, "Data\\VaR\\Multi_DCC_GARCH.csv", row.names = FALSE)
+write.csv(multi_dcc_VaR, "Data\\VaR\\Multi_Normal_DCC_GARCH_R.csv", 
+          row.names = FALSE)
 

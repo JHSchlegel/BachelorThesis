@@ -2,8 +2,6 @@
 ############################### Backtesting ###############################
 #=========================================================================#
 
-# R version 4.2.2 (2022-10-31 ucrt)
-
 ## Import my Backtesting Functions
 source("Scripts/Backtesting_Functions.R")
 # see Backtesting_Functions.R for function documentation
@@ -30,31 +28,35 @@ Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv",
                                  header = TRUE)
 Uni_MN_2_2_GARCH_vaR <- read.csv("./Data/VaR/Uni_MN_2_2_GARCH.csv", 
                                 header = TRUE)
-Uni_MN_3_2_GARCH_vaR <- read.csv("./Data/VaR/Uni_MN_3_2_GARCH.csv", 
-                                 header = TRUE)
 Uni_MN_3_3_GARCH_vaR <- read.csv("./Data/VaR/Uni_MN_3_3_GARCH.csv", 
                                  header = TRUE)
 
 
 # Multivariate
-Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
+Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_Normal_DCC_GARCH_Matlab.csv",
                                 header = TRUE)
 
-Fortin_Normal_NGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_norm.csv",
+Fortin_Normal_NGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_norm_NGARCH.csv",
                                      header = TRUE)
 Fortin_Normal_sGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_norm_sGARCH.csv",
                                      header = TRUE)
-Fortin_t_NGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_t.csv", header = TRUE)
+Fortin_t_NGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_t_NGARCH.csv",
+                                header = TRUE)
 
 Fortin_t_sGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_t_sGARCH.csv", 
                                 header = TRUE)
 
-COMFORT_MVG_CCC_GJR_VaR <- read.csv("./Data/VaR/COMFORT_MVG_VaR_CCC_GJR.csv",
+COMFORT_MVG_CCC_GJR_VaR <- read.csv("./Data/VaR/COMFORT_MVG_CCC_GJR_VaR.csv",
                                     header = TRUE)
 COMFORT_MVG_CCC_sGARCH_VaR <- read.csv(
-  "./Data/VaR/COMFORT_MVG_VaR_CCC_sGARCH.csv", header = TRUE
+  "./Data/VaR/COMFORT_MVG_CCC_sGARCH_VaR.csv", header = TRUE
   )
 
+COMFORT_MVG_DCC_GJR_VaR <-  read.csv("./Data/VaR/COMFORT_MVG_DCC_GJR_VaR.csv",
+                                     header = TRUE)
+COMFORT_MVG_DCC_sGARCH_VaR <-  read.csv(
+  "./Data/VaR/COMFORT_MVG_DCC_sGARCH_VaR.csv", header = TRUE
+  )
 
 
 
@@ -65,14 +67,16 @@ all_VaR_list <- list(Normal_GARCH = Uni_Normal_GARCH_VaR,
                      Skewt_GJR = Uni_Skewt_GJR_GARCH_VaR,
                      Skewt_NGARCH = Uni_Skewt_NGARCH_VaR,
                      MN_2_2_GARCH = Uni_MN_2_2_GARCH_vaR,
-                     MN_3_3_GARCH = Uni_MN_3_2_GARCH_vaR,
+                     MN_3_3_GARCH = Uni_MN_3_3_GARCH_vaR,
                      Normal_DCC_GARCH = Multi_DCC_GARCH_VaR,
                      Fortin_Normal_NGARCH = Fortin_Normal_NGARCH_VaR,
                      Fortin_Normal_sGARCH = Fortin_Normal_sGARCH_VaR,
                      Fortin_t_NGARCH = Fortin_t_NGARCH_VaR,
                      Fortin_t_sGARCH_VaR = Fortin_t_sGARCH_VaR,
                      COMFORT_MVG_CCC_GJR = COMFORT_MVG_CCC_GJR_VaR,
-                     COMFORT_MVG_CCC_sGARCH = COMFORT_MVG_CCC_sGARCH_VaR)
+                     COMFORT_MVG_CCC_sGARCH = COMFORT_MVG_CCC_sGARCH_VaR,
+                     COMFORT_MVG_DCC_GJR = COMFORT_MVG_DCC_GJR_VaR,
+                     COMFORT_MVG_DCC_sGARCH = COMFORT_MVG_DCC_sGARCH_VaR)
 
 #---------------------------------------#
 ########### Visual Inspection ###########
@@ -115,7 +119,9 @@ VaR_exceed_plot(Uni_MN_2_2_GARCH_vaR, 3, portfolio_plret_df, VaR_percentile = 5,
                 "MN(2,2)")
 VaR_exceed_plot(Uni_MN_2_2_GARCH_vaR, 2, portfolio_plret_df, VaR_percentile = 1,
                 "MN(2,2)")
+
 ## MN(3,3)
+# weird spikes where -VaR is positive even during crisis of 2008
 VaR_exceed_plot(Uni_MN_3_3_GARCH_vaR, 3, portfolio_plret_df, VaR_percentile = 5,
                 "MN(3,3)")
 VaR_exceed_plot(Uni_MN_3_3_GARCH_vaR, 2, portfolio_plret_df, VaR_percentile = 1,
@@ -201,11 +207,15 @@ passed_LRtests_VaR_list_05 <- list(
 #---------------------------------------------------------#
 ########### Ranking According to Mean Tick Loss ###########
 #---------------------------------------------------------#
+VaR_loss_ranking(all_VaR_list)
+
 VaR_loss_ranking(passed_LRtests_VaR_list_01)$table_01
 VaR_loss_ranking(passed_LRtests_VaR_list_05)$table_05
 
 #----------------------------------------------------------------#
 ########### CPA Tests as in Giacomini and White (2006) ###########
 #----------------------------------------------------------------#
+CPA_table(all_VaR_list)
+
 CPA_table(passed_LRtests_VaR_list_01)$CPA_table_01
 CPA_table(passed_LRtests_VaR_list_05)$CPA_table_05

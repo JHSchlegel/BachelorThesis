@@ -2,16 +2,16 @@
 ########################## Exploratory Data Analysis ##########################
 #=============================================================================#
 
-library(tidyverse)
-library(yfR)
-library(zoo)
-library(psych)
-library(tseries)
+# R version 4.2.2 (2022-10-31 ucrt)
+
+library(tidyverse) # for data manipulation
+library(yfR) # to load yahoo finance data
+library(zoo) 
+library(psych) # for summary statistics
+library(tseries) # for JB test
 
 theme_set(theme_light())
 
-# TODO: check for multivariate normality
-# TODO: tsdisplay to check for stationarity
 
 
 #---------------------------------------------------------------#
@@ -24,7 +24,8 @@ MomFactor <- read.csv("Data/MomentumFactorDaily.csv", header = TRUE)
 View(MomFactor)
 
 
-## Check whether the dates are the same for the period 2nd January 2001 to 30th December 2011
+## Check whether the dates are the same for the period 2nd January 2001 to 30th 
+## December 2011
 Date_fff_all <- as.Date(FFFactors$X, format = "%Y%m%d") 
 Date_fff <- Date_fff_all[(Date_fff_all >= "2001-01-02") & 
                            (Date_fff_all <= "2011-12-30")]
@@ -41,7 +42,7 @@ FFFactors_df <- FFFactors %>%
   relocate(Date, .before = "Mkt.RF") %>% 
   relocate(RF, .before = "Mkt.RF") %>% 
   mutate(Date = as.Date(Date, format = "%Y%m%d")) %>%
-  filter((Date >= "2001-01-02") & (Date <= "2011-12-30"))
+  dplyr::filter((Date >= "2001-01-02") & (Date <= "2011-12-30"))
 View(FFFactors_df)
 
 ## Construct momentum factor return dataframe for the period in question
@@ -50,7 +51,7 @@ MomFactor_df <- MomFactor %>%
   select(-X) %>% 
   relocate(Date, .before = "Mom") %>% 
   mutate(Date = as.Date(Date, format = "%Y%m%d")) %>% 
-  filter((Date >= "2001-01-02") & (Date <= "2011-12-30"))
+  dplyr::filter((Date >= "2001-01-02") & (Date <= "2011-12-30"))
 View(MomFactor_df)
 
 ## one dataframe for all factors
@@ -81,25 +82,33 @@ all.equal(FFCFactors_df$Date, stocks_plret_df$Date)
 ## The following (commented out) section shows how this csv file has been created
 
 
-#---------------------------------------------------------------------------------#
-### Creation of Stock Percentage Log Returns Dataframe with Yahoo Finance Data ####
-#---------------------------------------------------------------------------------#
+#---------------------------------------------------------#
+### Creation of Stock Percentage Log Returns Dataframe ####
+#---------------------------------------------------------#
 
-# # For numerical reasons of stability, the GARCH Models will be fitted using percentage log returns
-# # import log returns from yahoo;
-# # UTC now is called RTX due to fusion in April of 2020
+# For numerical reasons of stability, the GARCH Models will be fitted using 
+# percentage log returns
+
+# import log returns from yahoo;
+# UTC now is called RTX due to fusion in April of 2020
+
 # tickers <- c("KO", "XOM", "GE", "IBM", "CVX", "RTX", "PG", "CAT", "BA", "MRK")
-# stock_data_log <- yf_get(tickers, first_date = "2000-12-29", last_date = "2011-12-31",
-#                      freq_data = "daily",  type_return = "log")
+# stock_data_log <- yf_get(
+#   tickers, first_date = "2000-12-29", last_date = "2011-12-31",
+#   freq_data = "daily",  type_return = "log"
+#   )
 # head(stock_data_log)
-# 
-# ## Only the first log return for each of the stocks is NA
-# ## i.e. our actual log returns begin on the 2nd of January 2001
+
+## Only the first log return for each of the stocks is NA
+## i.e. our actual log returns begin on the 2nd of January 2001
+
 # sum(is.na(stock_data_log$ret_adjusted_prices))
-# 
-# ## Bind and assign the stock name, date and log return of adjusted prices to the stock name
+
+## Bind and assign the stock name, date and log return of adjusted prices to 
+## the stock name
 # for (ticker_nr in 1:10){
-#   assign(tickers[ticker_nr], stock_data_log %>% filter(ticker == tickers[ticker_nr]) %>%
+#   assign(tickers[ticker_nr], stock_data_log %>% 
+#            filter(ticker == tickers[ticker_nr]) %>%
 #            select(ticker, ref_date, ret_adjusted_prices) %>% na.omit())
 # }
 # ## View PG as an example
@@ -107,10 +116,14 @@ all.equal(FFCFactors_df$Date, stocks_plret_df$Date)
 # 
 # 
 # ## Create dataframe with the log returns of all stocks
-# stocks_lret_df <- data.frame(Date = KO$ref_date, KO = KO$ret_adjusted_prices, XOM = XOM$ret_adjusted_prices,
-#                              GE = GE$ret_adjusted_prices, IBM = IBM$ret_adjusted_prices, CVX = CVX$ret_adjusted_prices,
-#                              UTC = RTX$ret_adjusted_prices, PG = PG$ret_adjusted_prices, CAT = CAT$ret_adjusted_prices,
-#                              BA = BA$ret_adjusted_prices, MRK = MRK$ret_adjusted_prices)
+# stocks_lret_df <- data.frame(
+#   Date = KO$ref_date, KO = KO$ret_adjusted_prices, 
+#   XOM = XOM$ret_adjusted_prices,
+#   GE = GE$ret_adjusted_prices, IBM = IBM$ret_adjusted_prices,
+#   CVX = CVX$ret_adjusted_prices, UTC = RTX$ret_adjusted_prices, 
+#   PG = PG$ret_adjusted_prices, CAT = CAT$ret_adjusted_prices, 
+#   BA = BA$ret_adjusted_prices, MRK = MRK$ret_adjusted_prices
+#   )
 # View(stocks_lret_df)
 # 
 # 
@@ -119,14 +132,17 @@ all.equal(FFCFactors_df$Date, stocks_plret_df$Date)
 # stocks_plret_df <- data.frame(Date = KO$ref_date, 100*stocks_lret_df[,-1])
 # View(stocks_plret_df)
 # 
-# # ## Save the created dataframe as a csv file to allow for easy importing and guarantee reproducibility
+# ## Save the created dataframe as a csv file to allow for easy importing and 
+# ## guarantee reproducibility
 # write.csv(stocks_plret_df, "Data\\StockPlrets.csv", row.names = FALSE)
 
 
 
-#-----------------------------------------------------------------------------------------------#
-########### Calculate Portfolio Percentage Log Returns of Equally Weighted Portfolio ###########
-#-----------------------------------------------------------------------------------------------#
+#-----------------------------------------------------------------#
+########### Calculate Portfolio Percentage Log Returns  ###########
+#-----------------------------------------------------------------#
+
+# The portfolio is 1/N i.e. equal weighted
 
 # sum of logs != log of sums; hence calculate fractional arithmetic portfolio
 # returns and only then convert to percentage log returns
@@ -175,6 +191,7 @@ summary_statistics <- function(dataframe, multiple.rets =  TRUE){
   descr_stats <- psych::describe(dataframe[,-1])
   ## Conduct Jarque-Bera-Test
   ifelse(multiple.rets == TRUE,
+         # [,-1] since date is in first column
          JB_test <- apply(dataframe[,-1], 2, FUN = jarque.bera.test),
          JB_test <- jarque.bera.test(dataframe[,-1]))
   ## Extract Jarque-Bera test statistic
@@ -342,7 +359,7 @@ acf(abs(stocks_plret_df[,-1]), ci.col = "black") # high auto-& crosscorrelation
 ########### QQ-Plots ##############
 #---------------------------------#
 if (!require(car)) install.packages("car")
-qqPlot(portfolio_plret_df[,2], xlab = "Theoretical Normal Quantils",
+qqPlot(portfolio_plret_df[,2], xlab = "Theoretical Normal Quantiles",
        ylab = "Sample Quantiles", main = "Portfolio")
 
 par(mfrow = c(4,3))
