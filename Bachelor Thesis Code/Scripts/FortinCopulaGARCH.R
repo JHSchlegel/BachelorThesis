@@ -4,6 +4,13 @@
 
 # R version 4.2.2 (2022-10-31 ucrt)
 
+# !!! Important Notice !!! #
+# the idea to use rugarch::pdist and rugarch::qdist for PIT/ quantile 
+# was inspired by the GitHub of the rmgarch package. The backtransformation
+# to returns (they used sqrtm instead of Cholesky though) as well the general
+# structure of fitting a DCC Copula GARCH was taken from this video:
+# https://www.youtube.com/watch?v=OMjnDnGJOqY&list=LL&index=130
+
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(rugarch)) install.packages("rugarch") # for univariate GARCH models
 # rugarch allows for parallel programming using parallel package
@@ -259,7 +266,7 @@ OLS_table <- data.frame(coefs_df, adj_R2 = adj_R2, JB = JB) %>% round(3)
 OLS_table
 
 source("Scripts/EDA.R") # for summary_statistics function
-summary_statistics(error_df) #highly non-normal residuals
+summary_statistics(error_df) #highly non-normal OLS residuals
 
 ## Plot and investigate error distribution
 error_df[,-1] %>% 
@@ -344,7 +351,8 @@ bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
 error_vec_resampled <- error_mat[bootind,] # now without date
 head(error_vec_resampled)
 
-
+write.table(cbind("alpha_1perc", "alpha_5perc"), "a.csv", sep = "," ,append = FALSE,
+            quote = FALSE, col.names = FALSE, row.names = FALSE)
 
 #-------------------------------------------------------------#
 ########### Copula GARCH as in Fortin et al. (2022) ###########
@@ -391,7 +399,7 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
   
   VaR_cop <- matrix(0L, nrow = n_window, ncol = 2) # empty matrix to store VaR
   
-  for (i in 1:5){#n_window){
+  for (i in 1:n_window){
     cl <- makePSOCKcluster(numcores)
     dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
     dcc_fcst <- dccforecast(dcc_fit, cluster = cl)
@@ -473,7 +481,15 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
           "t" = fitCopula(
             tCopula(dim = 4, df.fixed = FALSE), data = data
           ),
-          "skewt" = stcop.mle(data, start=start, control = list(reltol=1e-4))
+          "skewt" = tryCatch(
+            {stcop.mle(data, start=start, control = list(reltol=1e-4))},
+            error = function(cond){
+              stcop_MLE <- stcop.mle(data, start=start, control = list(reltol=1e-4),
+                        solver = "Nelder-Mead")
+              message("Had to use Nelder-Mead")
+              return(stcop_MLE)
+            }
+          )
       )
     }
     
@@ -551,6 +567,8 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
     VaR_cop[i,] <- quantile(sim_pf_plreturns, c(0.01, 0.05))
     message("Completed: ", i, " of ", n_window)
     message(VaR_cop[i,])
+    write.table(cbind(VaR_cop[i,1], VaR_cop[i,2]), "a.csv", sep = "," ,append = TRUE,
+                quote = FALSE, col.names = FALSE, row.names = FALSE)
   }
   VaR_cop_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)],
                            alpha_0.01 = VaR_cop[,1], alpha_0.05 = VaR_cop[,2])
@@ -581,10 +599,7 @@ write.csv(VaR_cop_t_NGARCH_df,
 
 
 
-VaR_cop_skewt_df <- fortin_cgarch_VaR(DCC_corr_mat = FALSE, pseudo_obs = F,
-                                      ugarch_dist = "norm",copula_dist = "skewt")
-write.csv(VaR_cop_skewt_df, 
-          "Data\\VaR\\Fortin_cop_skewt.csv", row.names = FALSE)
+
 
 
 
@@ -614,6 +629,10 @@ write.csv(VaR_cop_t_sGARCH_df,
           "Data\\VaR\\Fortin_cop_t_sGARCH.csv", row.names = FALSE)
 
 
-
+VaR_cop_skewt_sGARCH_df <- fortin_cgarch_VaR(DCC_corr_mat = FALSE, pseudo_obs = F,
+                                             ugarch_dist = "norm", ugarch_model = "GARCH",
+                                             copula_dist = "skewt")
+write.csv(VaR_cop_skewt_sGARCH_df, 
+          "Data\\VaR\\Fortin_cop_skewt_sGARCH.csv", row.names = FALSE)
 
 
