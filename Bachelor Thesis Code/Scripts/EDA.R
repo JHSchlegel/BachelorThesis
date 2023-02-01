@@ -144,14 +144,19 @@ all.equal(FFCFactors_df$Date, stocks_plret_df$Date)
 
 # The portfolio is 1/N i.e. equal weighted
 
-# sum of logs != log of sums; hence calculate fractional arithmetic portfolio
-# returns and only then convert to percentage log returns
-fractional_arithmetic_returns <- apply(stocks_plret_df[,-1], 2,
-                                       function(x)exp((x/100))-1)
-portfolio_ret <- rowMeans(fractional_arithmetic_returns)
-portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date, 
-                                 Portfolio = sapply(
-                                   portfolio_ret, function(x) 100*log(x+1)))
+## sum of logs != log of sums; i.e. correct way would be
+# fractional_arithmetic_returns <- apply(stocks_plret_df[,-1], 2,
+#                                     function(x)exp((x/100))-1)
+# portfolio_ret <- rowMeans(fractional_arithmetic_returns)
+# portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date, 
+#                                  Portfolio = sapply(
+#                                    portfolio_ret, function(x) 100*log(x+1)))
+
+## portfolio returns can approximately be calculated using the mean
+## this way we can make use of linearity
+portfolio_plret_df <- data.frame(Date = stocks_plret_df$Date,
+                                 Portfolio = rowMeans(stocks_plret_df[,-1]))
+
 View(portfolio_plret_df)
 
 write.csv(portfolio_plret_df, "Data\\PortfolioPlrets.csv", row.names = FALSE)

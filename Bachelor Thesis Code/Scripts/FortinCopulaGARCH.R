@@ -6,9 +6,10 @@
 
 # !!! Important Notice !!! #
 # the idea to use rugarch::pdist and rugarch::qdist for PIT/ quantile 
-# was inspired by the GitHub of the rmgarch package. The backtransformation
-# to returns (they used sqrtm instead of Cholesky though) as well the general
-# structure of fitting a DCC Copula GARCH was taken from this video:
+# was inspired by the GitHub of the rmgarch package. The code for 
+# the backtransformation to returns was(they used sqrtm instead of Cholesky 
+# though) as well the general structure of fitting a DCC Copula GARCH was
+# inspired by this this video:
 # https://www.youtube.com/watch?v=OMjnDnGJOqY&list=LL&index=130
 
 if (!require(tidyverse)) install.packages("tidyverse")
@@ -18,7 +19,7 @@ if (!require(parallel)) install.packages("parallel")
 if (!require(rmgarch)) install.packages("rmgarch") # for DCC GARCH models
 if (!require(copula)) install.packages("copula") # for copulas
 if (!require(Rcpp)) install.packages("Rcpp") # to integrate C++ code in R
-theme_set(theme_light())
+theme_set(theme_light()) # ggplot theme for plotting
 
 
 sourceCpp("Scripts/Columnwise_Sum.cpp")
@@ -344,8 +345,10 @@ error_df %>%
 # to make sure dependencies are kept, all elements in a row are from the same
 # time t
 
-## Hence we will be using the statements below in the final function to preserve
-## relations between different stocks
+## Hence we will be using an adapted version of the statements below in the
+## final function to preserve relations between different stocks
+## Adapted, since we have to avoid data leakage and hence can only use
+## observations for bootstrap resamples which are in the current window
 set.seed(42)
 N_boot <- 200000
 bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
@@ -564,6 +567,7 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
     factor_rets <- matrix(rep(dcc_fcst_mean, each = N_sim), ncol = 4) + 
       t(chol_cov%*%t(sim_residuals))
     
+    ## Bootstrap OLS residuals distribution
     set.seed(i)
     bootind <- sample(i:(1000+i-1), size = N_boot, replace = TRUE)
     error_vec_resampled <- error_mat[bootind,] 
@@ -579,11 +583,13 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
       )
     
     # calculate portfolio percentage log returns for equally weighted portfolio
+    # not exact but this way, weights*returns = mean
+    sim_pf_plreturns <- rowMeans(sim_returns)
     
-    fractional_arithmetic_returns <- apply(sim_returns, 2,
-                                           function(x)exp((x/100))-1)
-    sim_pf_returns <- rowMeans(fractional_arithmetic_returns)
-    sim_pf_plreturns <- sapply(sim_pf_returns, function(x) 100*log(x+1))
+    # fractional_arithmetic_returns <- apply(sim_returns, 2,
+    #                                        function(x)exp((x/100))-1)
+    # sim_pf_returns <- rowMeans(fractional_arithmetic_returns)
+    # sim_pf_plreturns <- sapply(sim_pf_returns, function(x) 100*log(x+1))
     
     VaR_cop[i,] <- quantile(sim_pf_plreturns, c(0.01, 0.05))
     message("Completed: ", i, " of ", n_window)
@@ -637,7 +643,7 @@ write.csv(VaR_cop_t_sGARCH_df,
 
 ## sGARCH skewt copula
 VaR_cop_skewt_sGARCH_df <- fortin_cgarch_VaR(
-  DCC_corr_mat = FALSE, pseudo_obs = F, ugarch_dist = "norm",
+  DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
   ugarch_model = "GARCH", copula_dist = "skewt", error_mat = error_mat
   )
 write.csv(VaR_cop_skewt_sGARCH_df, 
