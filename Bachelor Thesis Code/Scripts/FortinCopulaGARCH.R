@@ -586,6 +586,8 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
     # not exact but this way, weights*returns = mean
     sim_pf_plreturns <- rowMeans(sim_returns)
     
+    
+    ## exact way would be
     # fractional_arithmetic_returns <- apply(sim_returns, 2,
     #                                        function(x)exp((x/100))-1)
     # sim_pf_returns <- rowMeans(fractional_arithmetic_returns)
