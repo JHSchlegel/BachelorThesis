@@ -59,7 +59,8 @@ if (sys.nframe() == 0) {
                                       header = TRUE)
   
   
-  Multi_Fortin_t_VaR <- read.csv("./Data/VaR/Multi_cop_t_VaR.csv", header = TRUE)
+  Multi_Fortin_t_VaR <- read.csv("./Data/VaR/Multi_cop_t_VaR.csv", 
+                                 header = TRUE)
 }
 
 
@@ -151,7 +152,7 @@ if (!require(rugarch)) install.packages("rugarch")
 
 #' Test of unconditional coverage
 #'
-#' @param p VaR percentile e.g. 1%
+#' @param p VaR quantile e.g. 1%
 #' @param VaR VaR forecasts of a model (only the column with p% VaR values)
 #' @param plrets portfolio returns dataframe with dates in first column& returns
 #'in second column
@@ -190,7 +191,7 @@ if (sys.nframe() == 0) {
 
 #' Test of independence
 #'
-#' @param p VaR percentile e.g. 1%
+#' @param p VaR quantile e.g. 1%
 #' @param VaR VaR forecasts of a model (only the column with p% VaR values)
 #' @param plrets portfolio returns dataframe with dates in first column& returns
 #'in second column
@@ -222,7 +223,7 @@ LR_ind <- function(p, VaR, plrets = portfolio_plret_df[-c(1:1000),2]){
 #' As in rugarch, the cc test statistic is for numerical reasons calculated as
 #' the sum of ind& uc test statistics.
 #'
-#' @param p VaR percentile e.g. 1%
+#' @param p VaR quantile e.g. 1%
 #' @param VaR VaR forecasts of a model (only the column with p% VaR values)
 #' @param plrets portfolio returns dataframe with dates in first column& returns
 #'in second column
@@ -266,7 +267,7 @@ setClass(Class="LR_tests",
 #' the LR test of unconditional coverage, the LR test of independence and the LR
 #' test of conditional coverage.
 #'
-#' @param p VaR percentile e.g. 1%
+#' @param p VaR quantile e.g. 1%
 #' @param VaR VaR forecasts of a model (only the column with p% VaR values)
 #' @param plrets portfolio returns dataframe with dates in first column& returns
 #'in second column
@@ -505,21 +506,21 @@ if (sys.nframe() == 0) {
 #' 95% VaR in third column
 #' @param plrets portfolio returns; by default portfolio returns from t=1001 
 #' until t=T
-#' @param percentile 1- VaR percentiles; by default c(0.01, 0.05)
+#' @param quantiles VaR quantiles; by default c(0.01, 0.05)
 #'
 #' @return list w/ losses for the percentiles as first two elements and 
 #' mean losses for the percentiles as last two elements
 loss_VaR <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),2], 
-                     percentile = c(0.01, 0.05)){
-  indicator_01 <- ifelse(plrets-VaR[2]<0, 1, 0)
-  indicator_05 <- ifelse(plrets-VaR[3]<0, 1, 0)
-  loss_01 <- (plrets-VaR[2])*(percentile[1]-indicator_01)
-  loss_05 <- (plrets-VaR[3])*(percentile[2]-indicator_05)
+                     quantiles = c(0.01, 0.05)){
+  indicator_01 <- ifelse(plrets-VaR[,2]<0, 1, 0)
+  indicator_05 <- ifelse(plrets-VaR[,3]<0, 1, 0)
+  loss_01 <- (plrets-VaR[,2])*(quantiles[1]-indicator_01)
+  loss_05 <- (plrets-VaR[,3])*(quantiles[2]-indicator_05)
   return(list(
     loss_01=loss_01, 
     loss_05 = loss_05, 
-    mean_loss_01 = colMeans(loss_01), 
-    mean_loss_05 = colMeans(loss_05)
+    mean_loss_01 = mean(loss_01), 
+    mean_loss_05 = mean(loss_05)
   ))
 }
 
@@ -527,25 +528,39 @@ loss_VaR <- function(VaR, plrets = portfolio_plret_df[-c(1:1000),2],
 if (sys.nframe() == 0) {
   Uni_t_GJR_loss <- loss_VaR(Uni_t_GJR_GARCH_VaR)
   Uni_Normal_loss <- loss_VaR(Uni_Normal_GARCH_VaR)
-  Uni_Normal_loss$mean_loss_01
-  Uni_t_GJR_loss$mean_loss_01
+  mean_loss_sgarch <- Uni_Normal_loss$mean_loss_01
+  mean_loss_gjr <- Uni_t_GJR_loss$mean_loss_01
+  
+  ## Double checking with MCS:
+  # Note: I only saw that MCS package had implemented tick loss function for VaR
+  # towards the very end of my thesis. Hence, I have implemented my own function
+  # for tick loss long before I discovered the LossVaR function in MCS
+  library(MCS)
+  mcs_mean_loss_sgarch <- mean(MCS::LossVaR(
+    portfolio_plret_df[-c(1:1000),2], Uni_Normal_GARCH_VaR[,2], type = "normal", 
+    tau = 0.01))
+  mcs_mean_loss_gjr <-  mean(MCS::LossVaR(
+    portfolio_plret_df[-c(1:1000),2], Uni_t_GJR_GARCH_VaR[,2], type = "normal", 
+    tau = 0.01))
+  mcs_mean_loss_sgarch == mean_loss_sgarch
+  mcs_mean_loss_gjr == mean_loss_gjr
 }
 
 
 
-#' Ranking VaR forecasts
+#' Ranking VaR Forecasts
 #' 
-#' Ranking VaR forecasts in ascending order based on their average VaR/ tick loss.
+#' Ranking VaR forecasts in ascending order based on their average VaR tick loss.
 #'
 #' @param VaR_list list of VaR dataframes with date in first column, 1% VaR in
 #' second column and 5% VaR in third column
 #' @param plrets portfolio returns; by default portfolio returns from t=1001 
 #' until t=T
-#' @param percentile 1- VaR percentiles; by default c(0.99, 0.95)
+#' @param quantiles VaR quantiles; by default c(0.01, 0.05)
 #'
 #' @return list with tables for 1% and 5% VaR ranking
 VaR_loss_ranking <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),],
-                             percentile = c(0.99, 0.95)){
+                             quantiles = c(0.01, 0.05)){
   n <- length(VaR_list)
   matrix_99 <- matrix(0L, nrow = n, ncol = 1)
   matrix_95 <- matrix(0L, nrow = n, ncol = 1)
@@ -556,7 +571,7 @@ VaR_loss_ranking <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),],
   table_01 <- data.frame(matrix_99)
   colnames(table_01) <- c("mean_VaR_loss")
   rownames(table_01) <- names(VaR_list)
-  table_01 <- table_01 %>% arrange(mean_VaR_loss) # arange in ascending order
+  table_01 <- table_01 %>% arrange(mean_VaR_loss) # arrange in ascending order
   
   
   table_05 <- data.frame(matrix_95)
