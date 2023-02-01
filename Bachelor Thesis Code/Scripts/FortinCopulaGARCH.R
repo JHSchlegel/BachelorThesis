@@ -21,7 +21,7 @@ if (!require(Rcpp)) install.packages("Rcpp") # to integrate C++ code in R
 theme_set(theme_light())
 
 
-sourceCpp("Scripts/CppFunctions.cpp")
+sourceCpp("Scripts/Columnwise_Sum.cpp")
 source("Scripts/Skew_t_Copula.R")
 
 #--------------------------------------------------------#
@@ -233,6 +233,7 @@ mbm_pf %>% autoplot()
 #-----------------------------------------------------------------------------#
 
 if (!require(tseries)) install.packages(tseries) # for JB test
+if (!require(sandwich)) install.packages(sandwich)
 n_dates <- dim(FFCFactors_df)[1]
 coefs_mat <- matrix(0L, nrow = 10, ncol = 5) # empty matrix for coefficients
 error_mat <- matrix(0L, nrow = n_dates, ncol = 10) # empty matrix for residuals
@@ -246,7 +247,7 @@ for (i in 1:10){
   coefs_mat[i,] <- coef(fit)
   error_mat[,i] <- resid(fit)
   adj_R2[i] <- summary(fit)$adj.r.squared
-  JB[i] <- jarque.bera.test(resid(fit))$statistic
+  JB[i] <- tseries::jarque.bera.test(resid(fit))$statistic
 }
 # residuals vs fitted looks fine
 # qq-plots show leptokurtic behavior
@@ -351,28 +352,37 @@ bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
 error_vec_resampled <- error_mat[bootind,] # now without date
 head(error_vec_resampled)
 
-write.table(cbind("alpha_1perc", "alpha_5perc"), "a.csv", sep = "," ,append = FALSE,
-            quote = FALSE, col.names = FALSE, row.names = FALSE)
 
 #-------------------------------------------------------------#
 ########### Copula GARCH as in Fortin et al. (2022) ###########
 #-------------------------------------------------------------#
 
 #' Copula GARCH with Factor Returns
+#' 
+#' The function uses some global variables specified above. Hence, quickly run 
+#' all sections but microbenchmarking quickly before using this function
 #'
 #' @param DCC_corr_mat boolean: whether DCC-GARCH corr matrix is used for Copula 
 #' fitting or not
 #' @param pseudo_obs boolean: whether pseudo observations or PIT should be used
-#' @param copula_dist copula distribution: choose from normal, t and skew-t 
+#' @param ugarch_dist choose between "norm" and "sstd" for distribution of 
+#' GARCH marginals
+#' @param ugarch_model choose between "GARCH" and "NGARCH" for conditional 
+#' variance model of marginals
+#' @param copula_dist copula distribution: choose from "norm", "t" and "skewt" 
 #' distribution
-#'
+#' @param error_mat Tx10 Matrix with all OLS errors of Carhart four-factor model
+#' By default use error mat calculated above in section about Carhart four-
+#' factor model
 #' @return dataframe with dates in first column, 0.01 VaR in second column and
 #' 0.05 VaR in third column
 fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE, 
                               ugarch_dist = c("norm", "sstd"),
                               ugarch_model = c("GARCH", "NGARCH"),
-                              copula_dist = c("norm", "t", "skewt")){
+                              copula_dist = c("norm", "t", "skewt"),
+                              error_mat = error_mat){
   N_sim <- 200000 # nr. of random draws from copula
+  N_boot <- 200000 # nr. of bootstrap resamples of OLS residuals
   n_ahead <- 1 # 1 step ahead forecast
   n_window <- length(FFCFactors_df[,1])-1000 # how many rolling windows
   numcores <- detectCores() - 1 # use all but 1 core
@@ -399,6 +409,8 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
   
   VaR_cop <- matrix(0L, nrow = n_window, ncol = 2) # empty matrix to store VaR
   
+  
+  ## rolling window VaR forecast
   for (i in 1:n_window){
     cl <- makePSOCKcluster(numcores)
     dcc_fit <- dccfit(dcc_spec, data = Factors_ts[i:(1000+i-1),],cluster = cl)
@@ -474,23 +486,31 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
     start <- list(rho = numeric(6), delta=numeric(4), nu = 6)
     
     if (DCC_corr_mat == FALSE){
-      cop_fit <- switch(copula_dist,
-          "norm" = fitCopula(
-            normalCopula(dim = 4), data = data
-          ),
-          "t" = fitCopula(
-            tCopula(dim = 4, df.fixed = FALSE), data = data
-          ),
-          "skewt" = tryCatch(
-            {stcop.mle(data, start=start, control = list(reltol=1e-4))},
+      if (copula_dist == "skewt"){
+        if (i-1%%20==0){
+          cop_fit <- tryCatch(
+            {stcop.mle(data, start=start, 
+                       control = list(reltol=1e-4, maxit = 10000))},
             error = function(cond){
-              stcop_MLE <- stcop.mle(data, start=start, control = list(reltol=1e-4),
-                        solver = "Nelder-Mead")
+              stcop_MLE <- stcop.mle(data, start=start,
+                                     control = list(reltol=1e-4, maxit = 10000),
+                                     solver = "Nelder-Mead")
               message("Had to use Nelder-Mead")
               return(stcop_MLE)
             }
           )
-      )
+        }
+      }
+      else {
+        cop_fit <- switch(copula_dist,
+                          "norm" = fitCopula(
+                            normalCopula(dim = 4), data = data
+                          ),
+                          "t" = fitCopula(
+                            tCopula(dim = 4, df.fixed = FALSE), data = data
+                          )
+                          
+        )}
     }
     
     
@@ -545,9 +565,11 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
       t(chol_cov%*%t(sim_residuals))
     
     set.seed(i)
-    bootind <- sample.int(n_dates, size = N_boot, replace = TRUE)
+    bootind <- sample(i:(1000+i-1), size = N_boot, replace = TRUE)
     error_vec_resampled <- error_mat[bootind,] 
     
+    ## sim_returns = alpha+beta%*%factor returns + bootstrapped OLS residuals
+    # for more information about function see cpp file with function
     sim_returns <- columnwise_sum_cpp(
       rep(FFCFactors_mat[1000+i-1,1], 2e5), 
       factor_rets, 
@@ -557,7 +579,6 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
       )
     
     # calculate portfolio percentage log returns for equally weighted portfolio
-    #sim_pf_returns <- rowMeans(sim_returns)
     
     fractional_arithmetic_returns <- apply(sim_returns, 2,
                                            function(x)exp((x/100))-1)
@@ -567,8 +588,6 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
     VaR_cop[i,] <- quantile(sim_pf_plreturns, c(0.01, 0.05))
     message("Completed: ", i, " of ", n_window)
     message(VaR_cop[i,])
-    write.table(cbind(VaR_cop[i,1], VaR_cop[i,2]), "a.csv", sep = "," ,append = TRUE,
-                quote = FALSE, col.names = FALSE, row.names = FALSE)
   }
   VaR_cop_df <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)],
                            alpha_0.01 = VaR_cop[,1], alpha_0.05 = VaR_cop[,2])
@@ -576,22 +595,19 @@ fortin_cgarch_VaR <- function(DCC_corr_mat, pseudo_obs = TRUE,
 }
 
 
-
+## NGARCH normal copula
 VaR_cop_norm_NGARCH_df <- fortin_cgarch_VaR(
   DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "sstd",
-  ugarch_model = "NGARCH", copula_dist = "norm"
+  ugarch_model = "NGARCH", copula_dist = "norm", error_mat = error_mat
 )
 
 write.csv(VaR_cop_norm_NGARCH_df, 
           "Data\\VaR\\Fortin_cop_norm_NGARCH.csv", row.names = FALSE)
 
-
-
-
-
+## NGARCH t copula
 VaR_cop_t_NGARCH_df <- fortin_cgarch_VaR(
   DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "sstd",
-  ugarch_model = "NGARCH", copula_dist = "t"
+  ugarch_model = "NGARCH", copula_dist = "t", error_mat = error_mat
 )
 
 write.csv(VaR_cop_t_NGARCH_df, 
@@ -601,37 +617,29 @@ write.csv(VaR_cop_t_NGARCH_df,
 
 
 
-
-
-
-
-
-
-
-
-
-
+## sGARCH normal Copula
 VaR_cop_norm_sGARCH_df <- fortin_cgarch_VaR(
   DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
-  ugarch_model = "GARCH", copula_dist = "norm"
+  ugarch_model = "GARCH", copula_dist = "norm", error_mat = error_mat
   )
 
 write.csv(VaR_cop_norm_sGARCH_df, 
           "Data\\VaR\\Fortin_cop_norm_sGARCH.csv", row.names = FALSE)
 
 
-
+## sGARCH t copula
 VaR_cop_t_sGARCH_df <- fortin_cgarch_VaR(
   DCC_corr_mat = FALSE, pseudo_obs = TRUE, ugarch_dist = "norm",
-  ugarch_model = "GARCH", copula_dist = "t"
+  ugarch_model = "GARCH", copula_dist = "t", error_mat = error_mat
   )
 write.csv(VaR_cop_t_sGARCH_df, 
           "Data\\VaR\\Fortin_cop_t_sGARCH.csv", row.names = FALSE)
 
-
-VaR_cop_skewt_sGARCH_df <- fortin_cgarch_VaR(DCC_corr_mat = FALSE, pseudo_obs = F,
-                                             ugarch_dist = "norm", ugarch_model = "GARCH",
-                                             copula_dist = "skewt")
+## sGARCH skewt copula
+VaR_cop_skewt_sGARCH_df <- fortin_cgarch_VaR(
+  DCC_corr_mat = FALSE, pseudo_obs = F, ugarch_dist = "norm",
+  ugarch_model = "GARCH", copula_dist = "skewt", error_mat = error_mat
+  )
 write.csv(VaR_cop_skewt_sGARCH_df, 
           "Data\\VaR\\Fortin_cop_skewt_sGARCH.csv", row.names = FALSE)
 
