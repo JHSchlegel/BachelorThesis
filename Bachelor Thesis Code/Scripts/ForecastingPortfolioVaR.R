@@ -214,14 +214,14 @@ f_custom_optim <- function(vPw, f_nll, spec, data, do.plm){
 #'
 #' @return dataframe of VaR with date in first column, 1% VaR in second column
 #' and 5% VaR in third column
-mn_k_g_garch <- function(k){
+mn_k_garch <- function(k){
   window_size <- 1000
   n_windows <- dim(portfolio_plret_df)[1]-window_size
-  mn_k_g_garch_VaR <- matrix(0L, nrow = n_windows, ncol = 2)
-  # mn_k_g_garch_ES <- matrix(0L, nrow = n_windows, ncol = 2)
+  mn_k_garch_VaR <- matrix(0L, nrow = n_windows, ncol = 2)
+  # mn_k_garch_ES <- matrix(0L, nrow = n_windows, ncol = 2)
   
   
-  mn_k_g_garch_spec <- MSGARCH::CreateSpec(
+  mn_k_garch_spec <- MSGARCH::CreateSpec(
     # g GARCH terms, k-g constant
     variance.spec = list(model = rep("sGARCH", k)), 
     # mixture of k normal distributions
@@ -237,12 +237,12 @@ mn_k_g_garch <- function(k){
     fit_ml <- tryCatch(
       {
         MSGARCH::FitML(
-          spec = mn_k_g_garch_spec, 
+          spec = mn_k_garch_spec, 
           data = portfolio_plret_ts[i:(1000+i-1)]
       )},
       error = function(cond) {
         fit <- MSGARCH::FitML(
-          spec = mn_k_g_garch_spec, 
+          spec = mn_k_garch_spec, 
           data = portfolio_plret_ts[i:(1000+i-1)],
           ctr = list(OptimFUN = f_custom_optim)
         ) 
@@ -250,24 +250,24 @@ mn_k_g_garch <- function(k){
         return(fit)
       })
     # print(summary(fit_ml))
-    mn_k_g_garch_VaR[i,] <- MSGARCH::Risk(fit_ml, alpha = c(0.01, 0.05), 
+    mn_k_garch_VaR[i,] <- MSGARCH::Risk(fit_ml, alpha = c(0.01, 0.05), 
                                           nahead = 1)$VaR
-    # mn_k_g_garch_ES[i,] <- Risk(fit_ml, alpha = c(0.01, 0.05), nahead = 1)$ES
+    # mn_k_garch_ES[i,] <- Risk(fit_ml, alpha = c(0.01, 0.05), nahead = 1)$ES
     message("completed: ", i, " of ", n_windows)
   }
-  mn_k_g_garch_VaR_df <- data.frame(Date = portfolio_plret_df[-c(1:1000),1],
-                                    alpha_1perc = mn_k_g_garch_VaR[,1], 
-                                    alpha_5perc = mn_k_g_garch_VaR[,2])
-  invisible(mn_k_g_garch_VaR_df)
+  mn_k_garch_VaR_df <- data.frame(Date = portfolio_plret_df[-c(1:1000),1],
+                                    alpha_1perc = mn_k_garch_VaR[,1], 
+                                    alpha_5perc = mn_k_garch_VaR[,2])
+  invisible(mn_k_garch_VaR_df)
 }
 
 ## MN(2,2)
-mn_2_2_garch <- mn_k_g_garch(2)
+mn_2_2_garch <- mn_k_garch(2)
 write.csv(mn_2_2_garch, "Data\\VaR\\Uni_MN_2_2_GARCH.csv", row.names = FALSE)
 
 
 ## MN(3,3)
-mn_3_3_garch <- mn_k_g_garch(3) 
+mn_3_3_garch <- mn_k_garch(3) 
 write.csv(mn_3_3_garch, "Data\\VaR\\Uni_MN_3_3_GARCH.csv", row.names = FALSE)
 
 
