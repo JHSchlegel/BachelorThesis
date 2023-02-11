@@ -1,16 +1,18 @@
-#===========================================================================#
-############################### Skew-t Copula ###############################
-#===========================================================================#
+#=============================================================================#
+############################### Skewed-t Copula ###############################
+#=============================================================================#
 
 
 # R version 4.2.2 (2022-10-31 ucrt)
 
-
+# The code for fitting a skewed-t copula was taken from this paper:
 # https://www.semanticscholar.org/paper/Maximum-likelihood-estimation-of-skew-t-copula-Yoshiba/30350f710764f2261f1e3c2c113c2df53d0b699d?p2df
-# the original code caused Omega to be non-symmetric for dimensions >3 in 
-# stcopnll and rstcop since a transpose has been forgotten
-library(sn)
-library(signal)
+# The only lines in this file that were writte by me are the example codes and
+# some minor adjustments to stcopnll and rstcop since the original code caused 
+# Omega to be non-symmetric for dimensions >3 
+
+if (!require(sn)) install.packages("sn")
+if (!require(signal)) install.packages("signal")
 
 ## interpolating quantiles ##
 ipqst <- function(udat,zeta,nu,mpoints, ...){

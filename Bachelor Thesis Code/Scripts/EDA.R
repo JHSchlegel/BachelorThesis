@@ -167,13 +167,13 @@ par(mfrow=c(1,2), oma = c(0.2, 0.2, 0.2, 0.2), mar = c(5.1, 4.1, 4.1, 2.1),
     cex.main = 0.9)
 plot(as.Date(portfolio_plret_df$Date), portfolio_plret_df$Portfolio, type = "h", 
      main = "", xlab = "Date",
-     ylab = "Percentage Log Returns")
-title("Panel A: Daily Percentage Log Returns", line = 0.5)
+     ylab = "Portfolio Returns")
+title("Panel A: Daily Portfolio Returns", line = 0.5)
 abline(h = 0, col = "grey")
 # periods of higher and lower volatility clearly visible
-hist(portfolio_plret_df$Portfolio, breaks = 50,  xlab = "Percentage Log Returns", 
+hist(portfolio_plret_df$Portfolio, breaks = 50,  xlab = "Portfolio Returns", 
      main = "", col  ="grey95", xlim = c(-10, 12))
-title("Panel B: Histogram of Daily Percentage Log Returns", line = 0.5)
+title("Panel B: Histogram of Daily Portfolio Returns", line = 0.5)
 # non-normal with very extreme values on either side
 
 max_return_ind <- which.max(portfolio_plret_df$Portfolio)
@@ -376,4 +376,58 @@ for (i in 1:10){
 # All qqplots show clear non-normal behaviour due to their fat tails
 # combined with the very high Jarque-Bera test statistics it is apparent
 # that the returns are not univariate normal distributed
-  
+
+
+#--------------------------------------------#
+##### Checking for Multivariate Outliers #####
+#--------------------------------------------#
+# we will check for multivariate outliers using the squared Mahalanobis distance
+# in case of MN, this distance would be chi-2 distributed with nr of stocks or
+# nr of factors degrees of freedom
+# chi2 plot should be more or less linear
+
+
+
+
+
+if (!require(mvoutlier)) install.packages("mvoutlier") # for chisq plots
+if (!require(scales)) install.packages("scales")  # to change alpha in plots
+
+# redefine chisq.plot function (taken from github) from mvoutlier
+# for custom labeling:
+chisq.plot <-
+  function(x, quan=1/2, ...) {
+    
+    library(rrcov)
+    
+    covr <- covMcd(x, alpha=quan)
+    dist <- mahalanobis(x, center=covr$center, cov=covr$cov)
+    
+    s <- sort(dist, index=TRUE)
+    q <- (0.5:length(dist))/length(dist)
+    qchi <- qchisq(q, df=ncol(x))
+    
+    plot(s$x, qchi, xlab=expression("Ordered robust MD"^2), 
+          col = alpha(1, 0.5), ...)
+    qqline(q)
+    
+  }
+
+# Create chi-squared QQ-plot (default to remove outliers until linear):
+mvoutlier::chisq.plot(FFCFactors_df[,3:6]) # chisq.plot() uses robust estimates
+mvoutlier::chisq.plot(stocks_plret_df[,-1]) 
+
+# in both cases we detect severe multivariate outliers and multivariate 
+# non-normality
+
+# Create chi-squared QQ-plot (for plots in thesis):
+par(mfrow=c(1,2), oma = c(0.2, 0.2, 0.2, 0.2), mar = c(5.1, 5.1, 4.1, 2.1),
+    main = 0.9, cex = 0.8)
+chisq.plot(FFCFactors_df[,3:6], 
+           main=expression(
+             paste("Panel A: ", chi^2, "-Q-Q Plot for Factor Returns")),
+           ylab=expression(paste("Quantiles of ",chi[4]^2))) 
+chisq.plot(stocks_plret_df[,-1], 
+           main=expression(
+             paste("Panel B: ", chi^2, "-Q-Q Plot for Stock Returns")),
+           ylab=expression(paste("Quantiles of ",chi[10]^2)))

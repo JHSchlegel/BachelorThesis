@@ -46,6 +46,9 @@ Fortin_t_NGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_t_NGARCH.csv",
 Fortin_t_sGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_t_sGARCH.csv", 
                                 header = TRUE)
 
+Fortin_skewt_sGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_skewt_sGARCH.csv", 
+                                header = TRUE)
+
 COMFORT_MVG_CCC_GJR_VaR <- read.csv("./Data/VaR/COMFORT_MVG_CCC_GJR_VaR.csv",
                                     header = TRUE)
 COMFORT_MVG_CCC_sGARCH_VaR <- read.csv(
@@ -72,7 +75,8 @@ all_VaR_list <- list(Normal_GARCH = Uni_Normal_GARCH_VaR,
                      Fortin_Normal_NGARCH = Fortin_Normal_NGARCH_VaR,
                      Fortin_Normal_sGARCH = Fortin_Normal_sGARCH_VaR,
                      Fortin_t_NGARCH = Fortin_t_NGARCH_VaR,
-                     Fortin_t_sGARCH_VaR = Fortin_t_sGARCH_VaR,
+                     Fortin_t_sGARCH = Fortin_t_sGARCH_VaR,
+                     Fortin_skewt_sGARCH = Fortin_skewt_sGARCH_VaR,
                      COMFORT_MVG_CCC_GJR = COMFORT_MVG_CCC_GJR_VaR,
                      COMFORT_MVG_CCC_sGARCH = COMFORT_MVG_CCC_sGARCH_VaR,
                      COMFORT_MVG_DCC_GJR = COMFORT_MVG_DCC_GJR_VaR,
@@ -127,20 +131,15 @@ VaR_exceed_plot(Uni_MN_3_3_GARCH_vaR, 3, portfolio_plret_df, VaR_percentile = 5,
 VaR_exceed_plot(Uni_MN_3_3_GARCH_vaR, 2, portfolio_plret_df, VaR_percentile = 1,
                 "MN(3,3)")
 
+# way too "jumpy"
 
 ## Normal DCC:
 VaR_exceed_plot(Multi_DCC_GARCH_VaR, 3, portfolio_plret_df, VaR_percentile = 5,
                 "Normal DCC")
 VaR_exceed_plot(Multi_DCC_GARCH_VaR, 2, portfolio_plret_df, VaR_percentile = 1,
                 "Normal DCC")
-# way too many exceedances; very low spike towards end of 2008 (< -20%)
+# way too many exceedances; very low spike towards end of 2008 (< -30%)
 # leads to very high tick loss
-
-## COMFORT MVG CCC sGARCH:
-VaR_exceed_plot(COMFORT_MVG_CCC_sGARCH_VaR, 3, portfolio_plret_df, 
-                VaR_percentile = 5, "COMFORT MVG CCC sGARCH")
-VaR_exceed_plot(COMFORT_MVG_CCC_sGARCH_VaR, 2, portfolio_plret_df, 
-                VaR_percentile = 1, "COMFORT MVG CCC sGARCH")
 
 ## Fortin Normal cgarch w/ NGARCH marginals:
 VaR_exceed_plot(Fortin_Normal_NGARCH_VaR, 3, portfolio_plret_df, 
@@ -162,9 +161,15 @@ VaR_exceed_plot(Fortin_t_NGARCH_VaR, 2, portfolio_plret_df, VaR_percentile = 1,
 
 ## Fortin t cgarch w/ sGARCH marginals:
 VaR_exceed_plot(Fortin_t_sGARCH_VaR, 3, portfolio_plret_df, VaR_percentile = 5,
-                "Fortin t with sGARCH marginals")
+                "Fortin t Copula with sGARCH marginals")
 VaR_exceed_plot(Fortin_t_sGARCH_VaR, 2, portfolio_plret_df, VaR_percentile = 1,
-                "Fortin t with sGARCH marginals")
+                "Fortin t Copula with sGARCH marginals")
+
+## Fortin skewed t cgarch w/ sGARCH marginals:
+VaR_exceed_plot(Fortin_skewt_sGARCH_VaR, 3, portfolio_plret_df, VaR_percentile = 5,
+                "Fortin skewed t Copula with sGARCH marginals")
+VaR_exceed_plot(Fortin_skewt_sGARCH_VaR, 2, portfolio_plret_df, VaR_percentile = 1,
+                "Fortin skewed t Copula with sGARCH marginals")
 
 
 ## COMFORT MVG CCC GJR:
@@ -178,6 +183,18 @@ VaR_exceed_plot(COMFORT_MVG_CCC_sGARCH_VaR, 3, portfolio_plret_df,
                 VaR_percentile = 5, "COMFORT MVG CCC sGARCH")
 VaR_exceed_plot(COMFORT_MVG_CCC_GJR_VaR, 2, portfolio_plret_df, 
                 VaR_percentile = 1, "COMFORT MVG CCC sGARCH")
+
+## COMFORT MVG DCC GJR:
+VaR_exceed_plot(COMFORT_MVG_DCC_GJR_VaR, 3, portfolio_plret_df, 
+                VaR_percentile = 5, "COMFORT MVG DCC GJR")
+VaR_exceed_plot(COMFORT_MVG_DCC_GJR_VaR, 2, portfolio_plret_df, 
+                VaR_percentile = 1, "COMFORT MVG DCC GJR")
+
+## COMFORT MVG CCC sGARCH:
+VaR_exceed_plot(COMFORT_MVG_DCC_sGARCH_VaR, 3, portfolio_plret_df,
+                VaR_percentile = 5, "COMFORT MVG DCC sGARCH")
+VaR_exceed_plot(COMFORT_MVG_DCC_GJR_VaR, 2, portfolio_plret_df, 
+                VaR_percentile = 1, "COMFORT MVG DCC sGARCH")
 
 
 
