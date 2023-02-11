@@ -715,7 +715,11 @@ CPA_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),2]){
   rows <- VaR_list[-length(VaR_list)]
   cols <- VaR_list[-1]
   
+  n_tests_01 <- 0
+  n_tests_05 <- 0
   
+  n_signif_01 <- 0
+  n_signif_05 <- 0
   for (i in seq_along(rows)){
     for (j in seq_along(cols)){
       if (i<=j){
@@ -730,11 +734,17 @@ CPA_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),2]){
                               plrets = plrets)@VaR_05$better_05
         
         CPA_matrix_01[i,j] <- paste(
-          as.character(round(as.numeric(p_val_01),6)), better_01,
+          as.character(round(as.numeric(p_val_01),3)), better_01,
           ifelse(p_val_01<0.05, "(*)", ""),sep  ="; ")
         CPA_matrix_05[i,j] <- paste(
-          as.character(round(as.numeric(p_val_05),6)), better_05, 
+          as.character(round(as.numeric(p_val_05),3)), better_05, 
           ifelse(p_val_05<0.05, "(*)", ""), sep  ="; ")
+        
+        n_tests_01 <- n_tests_01 + 1
+        n_tests_05 <- n_tests_05 + 1
+        
+        if (p_val_01<0.05) n_signif_01 <- n_signif_01 + 1
+        if (p_val_05<0.05) n_signif_05 <- n_signif_05 + 1
         }
     }
   }
@@ -746,8 +756,11 @@ CPA_table <- function(VaR_list, plrets = portfolio_plret_df[-c(1:1000),2]){
   colnames(CPA_table_05) <- names(cols)
   rownames(CPA_table_05) <- names(rows)
   
-  return(list(CPA_table_01 = CPA_table_01,
-              CPA_table_05 = CPA_table_05))
+  return(list(CPA_table_01 = CPA_table_01, n_signif_01 = n_signif_01, 
+              n_tests_01 = n_tests_01,
+              CPA_table_05 = CPA_table_05, n_signif_05 = n_signif_05, 
+              n_tests_05 = n_tests_05
+              ))
 }
 
 ## Don't run when importing

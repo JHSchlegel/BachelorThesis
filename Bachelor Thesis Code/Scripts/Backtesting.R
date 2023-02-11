@@ -55,11 +55,6 @@ COMFORT_MVG_CCC_sGARCH_VaR <- read.csv(
   "./Data/VaR/COMFORT_MVG_CCC_sGARCH_VaR.csv", header = TRUE
   )
 
-COMFORT_MVG_DCC_GJR_VaR <-  read.csv("./Data/VaR/COMFORT_MVG_DCC_GJR_VaR.csv",
-                                     header = TRUE)
-COMFORT_MVG_DCC_sGARCH_VaR <-  read.csv(
-  "./Data/VaR/COMFORT_MVG_DCC_sGARCH_VaR.csv", header = TRUE
-  )
 
 
 
@@ -78,9 +73,7 @@ all_VaR_list <- list(Normal_GARCH = Uni_Normal_GARCH_VaR,
                      Fortin_t_sGARCH = Fortin_t_sGARCH_VaR,
                      Fortin_skewt_sGARCH = Fortin_skewt_sGARCH_VaR,
                      COMFORT_MVG_CCC_GJR = COMFORT_MVG_CCC_GJR_VaR,
-                     COMFORT_MVG_CCC_sGARCH = COMFORT_MVG_CCC_sGARCH_VaR,
-                     COMFORT_MVG_DCC_GJR = COMFORT_MVG_DCC_GJR_VaR,
-                     COMFORT_MVG_DCC_sGARCH = COMFORT_MVG_DCC_sGARCH_VaR)
+                     COMFORT_MVG_CCC_sGARCH = COMFORT_MVG_CCC_sGARCH_VaR)
 
 #---------------------------------------#
 ########### Visual Inspection ###########
@@ -184,17 +177,6 @@ VaR_exceed_plot(COMFORT_MVG_CCC_sGARCH_VaR, 3, portfolio_plret_df,
 VaR_exceed_plot(COMFORT_MVG_CCC_GJR_VaR, 2, portfolio_plret_df, 
                 VaR_percentile = 1, "COMFORT MVG CCC sGARCH")
 
-## COMFORT MVG DCC GJR:
-VaR_exceed_plot(COMFORT_MVG_DCC_GJR_VaR, 3, portfolio_plret_df, 
-                VaR_percentile = 5, "COMFORT MVG DCC GJR")
-VaR_exceed_plot(COMFORT_MVG_DCC_GJR_VaR, 2, portfolio_plret_df, 
-                VaR_percentile = 1, "COMFORT MVG DCC GJR")
-
-## COMFORT MVG CCC sGARCH:
-VaR_exceed_plot(COMFORT_MVG_DCC_sGARCH_VaR, 3, portfolio_plret_df,
-                VaR_percentile = 5, "COMFORT MVG DCC sGARCH")
-VaR_exceed_plot(COMFORT_MVG_DCC_GJR_VaR, 2, portfolio_plret_df, 
-                VaR_percentile = 1, "COMFORT MVG DCC sGARCH")
 
 
 
@@ -204,35 +186,15 @@ VaR_exceed_plot(COMFORT_MVG_DCC_GJR_VaR, 2, portfolio_plret_df,
 performance_table(all_VaR_list)$performance_table_01
 performance_table(all_VaR_list)$performance_table_05
 
-# list of 1% VaR estimates that passed LR tests
-passed_LRtests_VaR_list_01 <- list(
-  Skewt_GJR = Uni_Skewt_GJR_GARCH_VaR,
-  Fortin_Normal_sGARCH = Fortin_Normal_sGARCH_VaR,
-  Fortin_t_sGARCH_VaR = Fortin_t_sGARCH_VaR,
-  COMFORT_MVG_CCC_GJR = COMFORT_MVG_CCC_GJR_VaR,
-  COMFORT_MVG_CCC_sGARCH = COMFORT_MVG_CCC_sGARCH_VaR)
-
-# list of 5% VaR estimates that passed LR tests
-passed_LRtests_VaR_list_05 <- list(
-  Fortin_Normal_sGARCH = Fortin_Normal_sGARCH_VaR,
-  Fortin_t_sGARCH_VaR = Fortin_t_sGARCH_VaR,
-  COMFORT_MVG_CCC_GJR = COMFORT_MVG_CCC_GJR_VaR,
-  COMFORT_MVG_CCC_sGARCH = COMFORT_MVG_CCC_sGARCH_VaR
-)
-
 
 #---------------------------------------------------------#
 ########### Ranking According to Mean Tick Loss ###########
 #---------------------------------------------------------#
 VaR_loss_ranking(all_VaR_list)
 
-VaR_loss_ranking(passed_LRtests_VaR_list_01)$table_01
-VaR_loss_ranking(passed_LRtests_VaR_list_05)$table_05
 
 #----------------------------------------------------------------#
 ########### CPA Tests as in Giacomini and White (2006) ###########
 #----------------------------------------------------------------#
 CPA_table(all_VaR_list)
 
-CPA_table(passed_LRtests_VaR_list_01)$CPA_table_01
-CPA_table(passed_LRtests_VaR_list_05)$CPA_table_05
