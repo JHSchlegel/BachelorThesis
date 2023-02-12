@@ -3,7 +3,9 @@ load("StockPlrets.mat")
 window_length = 1000;
 n_windows = length(StockPlrets)-window_length;
 
-
+% we will be working with -VaR instead of VaR 
+% this allows for a more intuitive interpretation and is also the default 
+% output in R's rugarch package
 
 %% Normal DCC sGARCH
 Normal_VaR_DCC_sGARCH_mat = zeros(n_windows, 2);

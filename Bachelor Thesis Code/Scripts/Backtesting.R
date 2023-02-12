@@ -6,6 +6,11 @@
 source("Scripts/Backtesting_Functions.R")
 # see Backtesting_Functions.R for function documentation
 
+
+# Note that we work with -VaR instead of VaR.
+# This allows for a more intuitive interpretation and is also the default 
+# output in R's rugarch package
+
 #------------------------------------#
 ########### Importing Data ###########
 #------------------------------------#
