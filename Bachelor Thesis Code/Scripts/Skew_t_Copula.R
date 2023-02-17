@@ -7,7 +7,7 @@
 
 # The code for fitting a skewed-t copula was taken from this paper:
 # https://www.semanticscholar.org/paper/Maximum-likelihood-estimation-of-skew-t-copula-Yoshiba/30350f710764f2261f1e3c2c113c2df53d0b699d?p2df
-# The only lines in this file that were writte by me are the example codes and
+# The only lines in this file that were writte by me are the example calls and
 # some minor adjustments to stcopnll and rstcop since the original code caused 
 # Omega to be non-symmetric for dimensions >3 
 

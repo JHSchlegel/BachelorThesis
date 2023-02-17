@@ -12,7 +12,7 @@
 # inspired by this this video:
 # https://www.youtube.com/watch?v=OMjnDnGJOqY&list=LL&index=130
 # For the general structure of a dcc-copula GARCH model, I mainly considered
-# Christoffersen's "Elements of Financial Risk Management" book
+# Christoffersen's "Elements of Financial Risk Management" book Chapter 9
 
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(rugarch)) install.packages("rugarch") # for univariate GARCH models
@@ -248,7 +248,7 @@ for (i in 1:10){
   fit <- lm((joined_df[,i+1]-RF) ~ Mkt.RF + SMB+ HML + Mom,data = joined_df)
   print(sqrt(diag(vcov(fit))))
   par(mfrow=c(2,2))
-  #plot(fit)
+  plot(fit)
   coefs_mat[i,] <- coef(fit)
   error_mat[,i] <- resid(fit)
   newey_west_se_mat[i,] <- sqrt(diag(sandwich::NeweyWest(
@@ -278,6 +278,15 @@ OLS_table
 
 source("Scripts/EDA.R") # for summary_statistics function
 summary_statistics(error_df) #highly non-normal OLS residuals
+
+par(mfrow=c(1,1), oma = c(0.2, 0.2, 0.2, 0.2), mar = c(5.1, 5.1, 4.1, 2.1),
+    main = 0.9, cex = 0.8)
+chisq.plot(error_mat,main=expression(
+  paste(chi^2, "-Q-Q Plot for OLS Residuals")),
+  ylab=expression(paste("Quantiles of ",chi[10]^2)))
+# looks incredibly similar to the one from the stock returns
+# check that they are not equal:
+sum(error_mat-stocks_plret_df[,-1])
 
 ## Plot and investigate error distribution
 error_df[,-1] %>% 
