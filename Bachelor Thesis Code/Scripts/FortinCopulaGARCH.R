@@ -8,9 +8,11 @@
 # the idea to use rugarch::pdist and rugarch::qdist for PIT/ quantile 
 # was inspired by the GitHub of the rmgarch package. The code for 
 # the backtransformation to returns was(they used sqrtm instead of Cholesky 
-# though) as well the general structure of fitting a DCC Copula GARCH was
+# though) as well as extracting mu& cov matrix from dccfit object
 # inspired by this this video:
 # https://www.youtube.com/watch?v=OMjnDnGJOqY&list=LL&index=130
+# For the general structure of a dcc-copula GARCH model, I mainly considered
+# Christoffersen's "Elements of Financial Risk Management" book Chapter 9
 
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(rugarch)) install.packages("rugarch") # for univariate GARCH models
@@ -49,7 +51,7 @@ joined_df <- stocks_plret_df %>%
 
 head(joined_df)
 dim(joined_df)
-joined_df$Date
+joined_df$Date %>% head()
 
 ## Convert to time series
 if (!require(xts)) install.packages("xts") # handling of multivariate time series
@@ -234,19 +236,23 @@ mbm_pf %>% autoplot()
 #-----------------------------------------------------------------------------#
 
 if (!require(tseries)) install.packages(tseries) # for JB test
-if (!require(sandwich)) install.packages(sandwich)
+if (!require(sandwich)) install.packages(sandwich) # for Newey West se's
 n_dates <- dim(FFCFactors_df)[1]
 coefs_mat <- matrix(0L, nrow = 10, ncol = 5) # empty matrix for coefficients
 error_mat <- matrix(0L, nrow = n_dates, ncol = 10) # empty matrix for residuals
+newey_west_se_mat <- matrix(0L, nrow = 10, ncol = 5) # empty matrix for se's
 adj_R2 <- numeric(10)
 JB <- numeric(10)
 for (i in 1:10){
-  # columns 2-11 are the shares
+  # columns 2-11 are the stocks
   fit <- lm((joined_df[,i+1]-RF) ~ Mkt.RF + SMB+ HML + Mom,data = joined_df)
+  print(sqrt(diag(vcov(fit))))
   par(mfrow=c(2,2))
   plot(fit)
   coefs_mat[i,] <- coef(fit)
   error_mat[,i] <- resid(fit)
+  newey_west_se_mat[i,] <- sqrt(diag(sandwich::NeweyWest(
+    fit, lag = NULL, prewhite = 1)))
   adj_R2[i] <- summary(fit)$adj.r.squared
   JB[i] <- tseries::jarque.bera.test(resid(fit))$statistic
 }
@@ -255,12 +261,15 @@ for (i in 1:10){
 # scale location plots show heteroscedastic behaviour
 # some points with high leverage but still w/in 0.5 boundary for Cook's distance
 
-coefs_df <- data.frame(coefs_mat); error_df <- data.frame(Date = joined_df$Date,
-                                                          error_mat)
-rownames(coefs_df) <- c("KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", 
-                        "BA", "MRK")
-colnames(error_df) <- c("Date", "KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", 
-                        "CAT", "BA", "MRK")
+coefs_df <- data.frame(coefs_mat)
+error_df <- data.frame(Date = joined_df$Date, error_mat)
+newey_west_se_df <- data.frame(newey_west_se_mat)
+rownames(coefs_df) <- rownames(newey_west_se_df) <-c(
+  "KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK"
+  )
+colnames(error_df) <- c(
+  "Date", "KO", "XOM", "GE", "IBM", "CVX", "UTC", "PG", "CAT", "BA", "MRK"
+  )
 colnames(coefs_df) <- c("Intercept", "Market", "Size", "Value", "Momentum")
 head(coefs_df); head(error_df)
 
@@ -269,6 +278,15 @@ OLS_table
 
 source("Scripts/EDA.R") # for summary_statistics function
 summary_statistics(error_df) #highly non-normal OLS residuals
+
+par(mfrow=c(1,1), oma = c(0.2, 0.2, 0.2, 0.2), mar = c(5.1, 5.1, 4.1, 2.1),
+    main = 0.9, cex = 0.8)
+chisq.plot(error_mat,main=expression(
+  paste(chi^2, "-Q-Q Plot for OLS Residuals")),
+  ylab=expression(paste("Quantiles of ",chi[10]^2)))
+# looks incredibly similar to the one from the stock returns
+# check that they are not equal:
+sum(error_mat-stocks_plret_df[,-1])
 
 ## Plot and investigate error distribution
 error_df[,-1] %>% 
@@ -359,6 +377,10 @@ head(error_vec_resampled)
 #-------------------------------------------------------------#
 ########### Copula GARCH as in Fortin et al. (2022) ###########
 #-------------------------------------------------------------#
+
+# Note that this function uses some global variables (factor returns and OLS
+# estimates). Hence before running this function make sure to run all chunks
+# apart from the microbenchmarking
 
 #' Copula GARCH with Factor Returns
 #' 
@@ -619,7 +641,7 @@ VaR_cop_t_NGARCH_df <- fortin_cgarch_VaR(
 )
 
 write.csv(VaR_cop_t_NGARCH_df, 
-          "Data\\VaR\\Fortin_cop_t.csv", row.names = FALSE)
+          "Data\\VaR\\Fortin_cop_t_NGARCH.csv", row.names = FALSE)
 
 
 

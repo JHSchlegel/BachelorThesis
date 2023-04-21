@@ -2,3 +2,10 @@
 .Rhistory
 .RData
 .Ruserdata
+Sources/
+*Research*
+.mat
+PSARM_Matlab-master/
+Other/
+Giacomini/
+OldTestCode/

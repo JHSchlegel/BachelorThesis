@@ -304,13 +304,13 @@ dcc_mspec <- multispec(replicate(10, dcc_uspec))
 dcc_spec <- dccspec(dcc_mspec, VAR = FALSE, model = "DCC", dccOrder = c(1,1), 
                     distribution =  "mvnorm")
 
-cl <- makePSOCKcluster(numcores)
+
 multi_dcc_roll <- dccroll(
   spec = dcc_spec, data = stocks_plret_ts, n.ahead = 1, 
   n.start = 1000, refit.every = 1, refit.window = "moving", window.size = 1000,
-  cluster = cl, solver.control = list(tol=1e-12, maxit = 20000)
+  solver.control = list(tol=1e-12, maxit = 20000)
   )
-stopCluster(cl)
+
 
 n <- length(stocks_plret_df[,1])
 n_windows <- n-1000
@@ -322,18 +322,21 @@ dcc_cov <- rcov(multi_dcc_roll)
 
 ## calculating portfolio variance and extracting means of stocks
 for (i in 1:n_windows) {
-  dcc_sigma_pf[i] <- portfolio.weights %*% dcc_cov[,,i] %*% portfolio.weights
+  dcc_sigma2_pf[i] <- portfolio.weights %*% dcc_cov[,,i] %*% portfolio.weights
   dcc_mu_stocks[i,] <- multi_dcc_roll@mforecast[[i]]@mforecast$mu
 }
 ## Calculating portfolio mean
-dcc_mu_pf <- apply(dcc_mu_stocks, 1, function(x) 100*log(mean(exp(x/100)-1)+1))
+dcc_mu_pf <- apply(dcc_mu_stocks, 1, mean)
 
 ## Calculating VaR and saving it in data frame  
 multi_dcc_VaR <- data.frame(Date = portfolio_plret_df$Date[-c(1:1000)])
-multi_dcc_VaR$alpha_1perc <- dcc_mu_pf + sapply(dcc_sigma_pf, function(x) 
-  x*qnorm(0.01, 0, 1, lower.tail = TRUE))
-multi_dcc_VaR$alpha_5perc <-  dcc_mu_pf +sapply(dcc_sigma_pf, function(x) 
-  x*qnorm(0.05, 0, 1, lower.tail = TRUE))
+multi_dcc_VaR$alpha_1perc <- dcc_mu_pf + sapply(dcc_sigma2_pf, function(x) 
+  sqrt(x)*qnorm(0.01, 0, 1, lower.tail = TRUE))
+# this is the same as qnorm(0.01, dcc_mu_pf, sqrt(dcc_sigma2_pf))
+
+multi_dcc_VaR$alpha_5perc <-  dcc_mu_pf +sapply(dcc_sigma2_pf, function(x) 
+  sqrt(x)*qnorm(0.05, 0, 1, lower.tail = TRUE))
+# this is the same as qnorm(0.05, dcc_mu_pf, sqrt(dcc_sigma2_pf))
 
 
 head(multi_dcc_VaR)
