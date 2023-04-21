@@ -3,8 +3,8 @@ In this repository you can find the code of my Bachelor's thesis **"Portfolio Va
 
 ## Abstract:
 This thesis examines the value at risk (VaR) forecasting ability of various univariate and multivariate
-models for a long equity portfolio. All of the considered models involve a generalized autoregressive conditional heteroskedasticity (GARCH)-type structure. The resulting forecasts are checked for
+models for a long equity portfolio. All of the considered models involve a generalized autoregressive conditional heteroskedasticity (GARCH)-type structure. The resulting forecasts are checked for
 desirable properties using violation-based backtests and compared in terms of predictive ability. We
 find that the VaR forecasts of almost all univariate models are inadequate, while the multivariate
-models have few problems passing these backtests. However, we do not find evidence that the multivariate models systematically outperform their univariate counterparts with regards to predictive
+models have few problems passing these backtests. However, we do not find evidence that the multivariate models systematically outperform their univariate counterparts with regards to predictive
 accuracy, or vice versa.
