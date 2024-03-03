@@ -5,7 +5,7 @@
 - [Introduction](#introduction)
 - [Contributors](#contributors)
 - [Abstract](#abstract)
-- [Structure](#repository-structure)
+- [Repository Structure](#repository-structure)
 - [Usage](#usage)
 - [Acknowledgements](#acknowledgements)
 
