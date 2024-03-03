@@ -5,7 +5,7 @@
 - [Introduction](#introduction)
 - [Contributors](#contributors)
 - [Abstract](#abstract)
-- [Structure](#structure)
+- [Structure](#repository-structure)
 - [Usage](#usage)
 - [Acknowledgements](#acknowledgements)
 
@@ -26,7 +26,7 @@ find that the VaR forecasts of almost all univariate models are inadequate, whil
 models have few problems passing these backtests. However, we do not find evidence that the multivariate models systematically outperform their univariate counterparts with regards to predictive
 accuracy, or vice versa.
 
-## Structure
+## Repository Structure
 ```bash
 ├── Bachelor Thesis Code
 │   ├── BachelorThesis.Rproj
