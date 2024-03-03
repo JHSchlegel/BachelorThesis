@@ -81,7 +81,7 @@ accuracy, or vice versa.
 ## Usage
 
 - `Data/`: Contains the datasets used.
-- `Scripts/`: Includes all R and Python scripts for data processing, model fitting, and analysis.
+- `Scripts/`: Includes all R, C++ and Matlab Scripts for data processing, model fitting, and analysis.
 - `Results/`: Contains all plots as well as the Value at Risk (VaR) predictions in the form of CSV files.
 - `Documentation/`: Contains the thesis document and any additional notes.
 
