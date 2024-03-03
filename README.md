@@ -6,18 +6,7 @@
 - [Contributors](#contributors)
 - [Abstract](#abstract)
 - [Structure](#structure)
-  - [Bachelor Thesis Code](#bachelor-thesis-code)
-    - [Data](#data)
-    - [Results](#results)
-      - [Plots](#plots)
-      - [VaR](#var)
-    - [Scripts](#scripts)
-  - [Documents](#documents)
 - [Usage](#usage)
-  - [Data](#data-1)
-  - [Scripts](#scripts-1)
-  - [Results](#results-1)
-  - [Documentation](#documentation)
 - [Acknowledgements](#acknowledgements)
 
 ## Introduction
@@ -38,8 +27,7 @@ models have few problems passing these backtests. However, we do not find eviden
 accuracy, or vice versa.
 
 ## Structure
-
-.
+```bash
 ├── Bachelor Thesis Code
 │   ├── BachelorThesis.Rproj
 │   ├── Data
@@ -88,6 +76,7 @@ accuracy, or vice versa.
 │   ├── BA_Thesis.pdf
 │   └── BA_Thesis_Tables.pdf
 └── README.md
+```
 
 ## Usage
 
