@@ -40,26 +40,26 @@ portfolio_plret_df <- read.csv("./Data/PortfolioPlrets.csv", header = TRUE)
 if (sys.nframe() == 0) {
   ## VaR
   # Univariate:
-  Uni_Normal_GARCH_VaR <- read.csv("./Data/VaR/Uni_Normal_GARCH_VaR.csv", 
+  Uni_Normal_GARCH_VaR <- read.csv("./Results/VaR/Uni_Normal_GARCH_VaR.csv", 
                                    header = TRUE)
-  Uni_EWMA_VaR <- read.csv("./Data/VaR/Uni_EWMA_VaR.csv", 
+  Uni_EWMA_VaR <- read.csv("./Results/VaR/Uni_EWMA_VaR.csv", 
                            header = TRUE)
-  Uni_t_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_t_GJR_GARCH.csv", 
+  Uni_t_GJR_GARCH_VaR <- read.csv("./Results/VaR/Uni_t_GJR_GARCH.csv", 
                                   header = TRUE)
-  Uni_Skewt_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_GJR_GARCH.csv", 
+  Uni_Skewt_GJR_GARCH_VaR <- read.csv("./Results/VaR/Uni_Skewt_GJR_GARCH.csv", 
                                       header = TRUE)
-  Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv", 
+  Uni_Skewt_NGARCH_VaR <- read.csv("./Results/VaR/Uni_Skewt_NGARCH.csv", 
                                    header = TRUE)
   
   # Multivariate
-  Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_DCC_GARCH.csv",
+  Multi_DCC_GARCH_VaR <- read.csv("./Results/VaR/Multi_DCC_GARCH.csv",
                                   header = TRUE)
   
-  Multi_Fortin_Normal_VaR <- read.csv("./Data/VaR/Multi_cop_norm_VaR.csv", 
+  Multi_Fortin_Normal_VaR <- read.csv("./Results/VaR/Multi_cop_norm_VaR.csv", 
                                       header = TRUE)
   
   
-  Multi_Fortin_t_VaR <- read.csv("./Data/VaR/Multi_cop_t_VaR.csv", 
+  Multi_Fortin_t_VaR <- read.csv("./Results/VaR/Multi_cop_t_VaR.csv", 
                                  header = TRUE)
 }
 

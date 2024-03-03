@@ -21,43 +21,43 @@ portfolio_plret_df <- read.csv("./Data/PortfolioPlrets.csv", header = TRUE)
 
 ## Import VaR Data
 # Univariate:
-Uni_Normal_GARCH_VaR <- read.csv("./Data/VaR/Uni_Normal_GARCH_VaR.csv", 
+Uni_Normal_GARCH_VaR <- read.csv("./Results/VaR/Uni_Normal_GARCH_VaR.csv", 
                                  header = TRUE)
-Uni_EWMA_VaR <- read.csv("./Data/VaR/Uni_EWMA_VaR.csv", 
+Uni_EWMA_VaR <- read.csv("./Results/VaR/Uni_EWMA_VaR.csv", 
                          header = TRUE)
-Uni_t_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_t_GJR_GARCH.csv", 
+Uni_t_GJR_GARCH_VaR <- read.csv("./Results/VaR/Uni_t_GJR_GARCH.csv", 
                                 header = TRUE)
-Uni_Skewt_GJR_GARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_GJR_GARCH.csv", 
+Uni_Skewt_GJR_GARCH_VaR <- read.csv("./Results/VaR/Uni_Skewt_GJR_GARCH.csv", 
                                     header = TRUE)
-Uni_Skewt_NGARCH_VaR <- read.csv("./Data/VaR/Uni_Skewt_NGARCH.csv", 
+Uni_Skewt_NGARCH_VaR <- read.csv("./Results/VaR/Uni_Skewt_NGARCH.csv", 
                                  header = TRUE)
-Uni_MN_2_2_GARCH_vaR <- read.csv("./Data/VaR/Uni_MN_2_2_GARCH.csv", 
+Uni_MN_2_2_GARCH_vaR <- read.csv("./Results/VaR/Uni_MN_2_2_GARCH.csv", 
                                 header = TRUE)
-Uni_MN_3_3_GARCH_vaR <- read.csv("./Data/VaR/Uni_MN_3_3_GARCH.csv", 
+Uni_MN_3_3_GARCH_vaR <- read.csv("./Results/VaR/Uni_MN_3_3_GARCH.csv", 
                                  header = TRUE)
 
 
 # Multivariate
-Multi_DCC_GARCH_VaR <- read.csv("./Data/VaR/Multi_Normal_DCC_GARCH_Matlab.csv",
+Multi_DCC_GARCH_VaR <- read.csv("./Results/VaR/Multi_Normal_DCC_GARCH_Matlab.csv",
                                 header = TRUE)
 
-Fortin_Normal_NGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_norm_NGARCH.csv",
+Fortin_Normal_NGARCH_VaR <- read.csv("./Results/VaR/Fortin_cop_norm_NGARCH.csv",
                                      header = TRUE)
-Fortin_Normal_sGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_norm_sGARCH.csv",
+Fortin_Normal_sGARCH_VaR <- read.csv("./Results/VaR/Fortin_cop_norm_sGARCH.csv",
                                      header = TRUE)
-Fortin_t_NGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_t_NGARCH.csv",
+Fortin_t_NGARCH_VaR <- read.csv("./Results/VaR/Fortin_cop_t_NGARCH.csv",
                                 header = TRUE)
 
-Fortin_t_sGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_t_sGARCH.csv", 
+Fortin_t_sGARCH_VaR <- read.csv("./Results/VaR/Fortin_cop_t_sGARCH.csv", 
                                 header = TRUE)
 
-Fortin_skewt_sGARCH_VaR <- read.csv("./Data/VaR/Fortin_cop_skewt_sGARCH.csv", 
+Fortin_skewt_sGARCH_VaR <- read.csv("./Results/VaR/Fortin_cop_skewt_sGARCH.csv", 
                                 header = TRUE)
 
-COMFORT_MVG_CCC_GJR_VaR <- read.csv("./Data/VaR/COMFORT_MVG_CCC_GJR_VaR.csv",
+COMFORT_MVG_CCC_GJR_VaR <- read.csv("./Results/VaR/COMFORT_MVG_CCC_GJR_VaR.csv",
                                     header = TRUE)
 COMFORT_MVG_CCC_sGARCH_VaR <- read.csv(
-  "./Data/VaR/COMFORT_MVG_CCC_sGARCH_VaR.csv", header = TRUE
+  "./Results/VaR/COMFORT_MVG_CCC_sGARCH_VaR.csv", header = TRUE
   )
 
 

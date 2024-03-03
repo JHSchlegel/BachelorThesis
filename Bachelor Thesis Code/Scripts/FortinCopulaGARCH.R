@@ -7,13 +7,15 @@
 # !!! Important Notice !!! #
 # the idea to use rugarch::pdist and rugarch::qdist for PIT/ quantile 
 # was inspired by the GitHub of the rmgarch package. The code for 
-# the backtransformation to returns was(they used sqrtm instead of Cholesky 
-# though) as well as extracting mu& cov matrix from dccfit object
+# the backtransformation to returns (they used sqrtm instead of Cholesky 
+# though) as well as extracting mu& cov matrix from dccfit object was
 # inspired by this this video:
 # https://www.youtube.com/watch?v=OMjnDnGJOqY&list=LL&index=130
 # For the general structure of a dcc-copula GARCH model, I mainly considered
 # Christoffersen's "Elements of Financial Risk Management" book Chapter 9
 
+if (!require(microbenchmark)) install.packages("microbenchmark") # for microbenchmarking
+if (!require(xts)) install.packages("xts") # handling of multivariate time series
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(rugarch)) install.packages("rugarch") # for univariate GARCH models
 # rugarch allows for parallel programming using parallel package
@@ -21,6 +23,11 @@ if (!require(parallel)) install.packages("parallel")
 if (!require(rmgarch)) install.packages("rmgarch") # for DCC GARCH models
 if (!require(copula)) install.packages("copula") # for copulas
 if (!require(Rcpp)) install.packages("Rcpp") # to integrate C++ code in R
+if (!require(RcppArmadillo)) install.packages("RcppArmadillo") # for C++ linear algebra
+if (!require(tseries)) install.packages(tseries) # for JB test
+if (!require(sandwich)) install.packages(sandwich) # for Newey West se's
+if (!require(pheatmap)) install.packages("pheatmap") # for correlation heatmap
+if (!require(corrr)) install.packages("corrr") # for correlation network plot
 theme_set(theme_light()) # ggplot theme for plotting
 
 
@@ -54,7 +61,6 @@ dim(joined_df)
 joined_df$Date %>% head()
 
 ## Convert to time series
-if (!require(xts)) install.packages("xts") # handling of multivariate time series
 Factors_ts <- xts(FFCFactors_df[,-c(1,2)], 
                   order.by = as.Date(FFCFactors_df$Date))
 stocks_plret_ts <- xts(stocks_plret_df[,-1], 
@@ -71,10 +77,6 @@ portfolio_plret_ts <- xts(portfolio_plret_df[,-1],
 # check which way it is the fastest using microbenchmark package
 # for completeness sake, I included all the benchmarking I did even though
 # some parts might not be directly relevant for the final function I wrote
-
-if (!require(microbenchmark)) install.packages("microbenchmark")
-
-
 mbm_idx <- microbenchmark(
   stocks_plret_ts[50:2000,2:9],
   stocks_plret_df[50:2000,2:9],
@@ -85,142 +87,177 @@ mbm_idx
 mbm_idx %>% autoplot()
 # xts and matrix way faster when trying to access subset of rows
 
-cppFunction("double DotProdCpp(NumericVector x, NumericVector y){
+# Define a C++ function to perform dot product calculations
+cppFunction("
+double DotProdCpp(NumericVector x, NumericVector y){
   double result = 0;
   int n = x.length();
-  for (int i=0; i<n; i++){
-    result+=x[i]*y[i];
+  for (int i = 0; i < n; i++) {
+    result += x[i] * y[i];
   }
   return result;
 }")
 
+# Set seed for reproducibility
 set.seed(42)
-a <- 3 # e.g. intercept or risk free rate
-x <- rnorm(4)
-y <- rnorm(4)
+
+# Initialize variables
+a <- 3 # e.g., intercept or risk-free rate
+x <- rnorm(4) # Random vector of size 4
+y <- rnorm(4) # Another random vector of size 4
+
+# Benchmarking dot product calculations for small vectors
 mbm_dot_small <- microbenchmark(
-  base = a+x%*%y,
-  crossprod = a+crossprod(x,y),
-  cpp_dot_prd = a+DotProdCpp(x,y),
-  times = 100
+  base = a + x %*% y, # Base R matrix multiplication
+  crossprod = a + crossprod(x, y), # Using crossprod for dot product
+  cpp_dot_prd = a + DotProdCpp(x, y), # Using the defined C++ function
+  times = 100 # Number of times each method is evaluated
 )
-mbm_dot_small
+
+# Print the benchmarking results for small vectors
+print(mbm_dot_small)
+
+# Visualize the benchmarking results for small vectors
 mbm_dot_small %>% autoplot()
-# Use %*% for dot product of simulated factor returns and OLS factor coefs
 
+# Benchmarking with larger vectors
+x <- rnorm(100000) # Large random vector
+y <- rnorm(100000) # Another large random vector
 
-x <- rnorm(100000)
-y <- rnorm(100000)
+# Perform microbenchmarking on larger vectors
 mbm_dot_large <- microbenchmark(
-  base = a+x%*%y,
-  crossprod = a+crossprod(x,y),
-  cpp_dot_prd = a+DotProdCpp(x,y),
+  base = a + x %*% y,
+  crossprod = a + crossprod(x, y),
+  cpp_dot_prd = a + DotProdCpp(x, y),
   times = 100
 )
-mbm_dot_large
+
+# Print the benchmarking results for large vectors
+print(mbm_dot_large)
+
+# Visualize the benchmarking results for large vectors
 mbm_dot_large %>% autoplot()
-# use C++ function to calculate dot product of large vectors
 
-numcores <- detectCores()-1
+# Determine the number of cores to use, leaving one out
+numcores <- detectCores() - 1
 
-parapply_test <- function(cl, test_rets, test_coefs){
+# Define a function to perform parallel computations using parApply
+parapply_test <- function(cl, test_rets, test_coefs) {
   cl <- makePSOCKcluster(numcores)
   clusterExport(cl, list("test_rets", "test_coefs"))
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- parApply(cl, test_rets, 1, 
-                function(x) test_coefs[i,1] + test_coefs[i,-1]%*%x)
+  for (i in 1:10) sim_test[, i] <- parApply(cl, test_rets, 1, 
+                                            function(x) test_coefs[i, 1] + test_coefs[i, -1] %*% x)
   stopCluster(cl)
-}
-
-
-apply_test <- function(test_rets, test_coefs){
-  sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- apply(test_rets, 1,
-                              function(x)test_coefs[i,1] + test_coefs[i,-1]%*%x)
   sim_test
 }
 
-columnwise_sum <- function(test_rets, test_coefs){
+# Define a function for sequential computations using apply
+apply_test <- function(test_rets, test_coefs) {
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- test_coefs[i,1] + 
-      test_coefs[i,2] * test_rets[,1] + test_coefs[i,3] * test_rets[,2]  + 
-      test_coefs[i,4] * test_rets[,3] + test_coefs[i,5] * test_rets[,4]
+  for (i in 1:10) sim_test[, i] <- apply(test_rets, 1,
+                                         function(x) test_coefs[i, 1] + test_coefs[i, -1] %*% x)
   sim_test
 }
 
+# Define a function for column-wise summation
+columnwise_sum <- function(test_rets, test_coefs) {
+  sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
+  for (i in 1:10) sim_test[, i] <- test_coefs[i, 1] + 
+      test_coefs[i, 2] * test_rets[, 1] + test_coefs[i, 3] * test_rets[, 2] + 
+      test_coefs[i, 4] * test_rets[, 3] + test_coefs[i, 5] * test_rets[, 4]
+  sim_test
+}
 
+# Prepare test data
+test_rets <- matrix(rnorm(4 * 2e5), nrow = 2e5, ncol = 4)
+test_errors <- matrix(rnorm(10 * 2e5), nrow = 2e5, ncol = 10)
+test_coefs <- matrix(rnorm(5 * 10), nrow = 10, ncol = 5)
 
-
-test_rets <- matrix(rnorm(4*2e5), nrow = 2e5, ncol = 4)
-test_errors <- matrix(rnorm(10*2e5), nrow = 2e5, ncol = 10)
-test_coefs <- matrix(rnorm(5*10), nrow = 10, ncol = 5)
-
-
-
+# Benchmarking parallel vs. sequential computations and column-wise summation
 mbm_apply <- microbenchmark(
   parapply = parapply_test(cl, test_rets, test_coefs),
   apply = apply_test(test_rets, test_coefs),
   columnwise = columnwise_sum(test_rets, test_coefs),
   times = 20
 )
-mbm_apply
+
+# Print the benchmarking results
+print(mbm_apply)
+
+# Visualize the benchmarking results
 mbm_apply %>% autoplot()
-# apply faster than parapply in this case, probably due to communication time
-# between threads when parallelizing
-# columnwise summing almost a hundred times faster
 
-
+# Define a function to simulate tests by computing within a loop
 in_loop <- function(constant, test_rets, test_coefs, test_errors){
+  # Initialize an empty matrix for the simulation results
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- constant + test_coefs[i,1] +
-      test_coefs[i,2] * test_rets[,1] +
-      test_coefs[i,3] * test_rets[,2] + test_coefs[i,4]*test_rets[,3] + 
-      test_coefs[i,5] * test_rets[,4] + test_errors[,i]
-  sim_test
+  # Loop through each column to compute the simulated test values
+  for (i in 1:10) {
+    sim_test[, i] <- constant + test_coefs[i, 1] +
+      test_coefs[i, 2] * test_rets[, 1] +
+      test_coefs[i, 3] * test_rets[, 2] + 
+      test_coefs[i, 4] * test_rets[, 3] + 
+      test_coefs[i, 5] * test_rets[, 4] + 
+      test_errors[, i]
+  }
+  return(sim_test)
 }
+
+# Define a function to simulate tests by computing outside of the loop
 out_loop <- function(constant, test_rets, test_coefs, test_errors){
+  # Initialize an empty matrix for the simulation results
   sim_test <- matrix(0L, nrow = 2e5, ncol = 10)
-  for (i in 1:10) sim_test[,i] <- constant + test_coefs[i,1] + 
-      test_coefs[i,2] * test_rets[,1] + test_coefs[i,3] * test_rets[,2] + 
-      test_coefs[i,4] * test_rets[,3] + test_coefs[i,5] * test_rets[,4]
-  sim_test + test_errors
+  # Loop through each column to compute the simulated test values without errors
+  for (i in 1:10) {
+    sim_test[, i] <- constant + test_coefs[i, 1] + 
+      test_coefs[i, 2] * test_rets[, 1] + 
+      test_coefs[i, 3] * test_rets[, 2] + 
+      test_coefs[i, 4] * test_rets[, 3] + 
+      test_coefs[i, 5] * test_rets[, 4]
+  }
+  # Add the error matrix after completing the summation
+  return(sim_test + test_errors)
 }
 
-
-
-
+# Compare the results of different simulation methods to ensure consistency
 x <- columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, test_errors, 2e5)
 y <- in_loop(a, test_rets, test_coefs, test_errors)
 z <- out_loop(a, test_rets, test_coefs, test_errors)
-all.equal(x,y)
-all.equal(x, z)
-# all functions yield the same result
+all.equal(x, y) # Check if x and y results are equal
+all.equal(x, z) # Check if x and z results are equal
 
+# Microbenchmark the performance of in-loop vs. out-loop vs. C++ implementation
 mbm_loop <- microbenchmark(
   inloop = in_loop(a, test_rets, test_coefs, test_errors),
   outloop = out_loop(a, test_rets, test_coefs, test_errors),
   cpp = columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, test_errors, 2e5),
   times = 50
 )
-mbm_loop
+
+# Print the benchmarking results
+print(mbm_loop)
+
+# Visualize the benchmarking results using autoplot
 mbm_loop %>% autoplot()
-# outside of loop is faster than inside the loop
-# c++ 7x faster than columnwise implementation w/ summation of error matrix 
-# outside the loop
 
-sim_test <- columnwise_sum_cpp(rep(a, 2e5), test_rets, test_coefs, 
-                               test_errors, 2e5)
+# Perform another set of microbenchmarking for different parallel processing approaches
+cl <- makePSOCKcluster(numcores) # Create a PSOCK cluster using detected cores
+clusterExport(cl, list("sim_test")) # Export sim_test variable to the cluster
 
-cl <- makePSOCKcluster(numcores)
-clusterExport(cl, list("sim_test"))
+# Benchmarking apply, parallel apply, and rowMeans functions
 mbm_pf <- microbenchmark(
-  apply = apply(sim_test, 1, mean),
-  parallel = parApply(cl, sim_test, 1, mean),
-  rowmeans = rowMeans(sim_test),
+  apply = apply(sim_test, 1, mean), # Using apply to compute row means
+  parallel = parApply(cl, sim_test, 1, mean), # Using parallel apply for row means
+  rowmeans = rowMeans(sim_test), # Using the rowMeans function
   times = 50
 )
+
+# Stop the cluster after benchmarking
 stopCluster(cl)
-mbm_pf
+
+# Print and visualize the performance benchmarking results
+print(mbm_pf)
 mbm_pf %>% autoplot()
 # rowMeans the fastest; when testing it was even faster than a quick C++ 
 # implementation I made
@@ -234,9 +271,6 @@ mbm_pf %>% autoplot()
 #-----------------------------------------------------------------------------#
 ########### Coefficients and Residuals of Carhart Four-Factor Model ###########
 #-----------------------------------------------------------------------------#
-
-if (!require(tseries)) install.packages(tseries) # for JB test
-if (!require(sandwich)) install.packages(sandwich) # for Newey West se's
 n_dates <- dim(FFCFactors_df)[1]
 coefs_mat <- matrix(0L, nrow = 10, ncol = 5) # empty matrix for coefficients
 error_mat <- matrix(0L, nrow = n_dates, ncol = 10) # empty matrix for residuals
@@ -304,14 +338,12 @@ apply(error_mat, 2, max)
 # all shares
 # can observe that the bootstrapped error distributions have a long left tail
 
-if (!require(pheatmap)) install.packages("pheatmap")
 error_df[,-1] %>% 
   cor() %>% 
   pheatmap(display_numbers = TRUE)
 # most residuals only barely correlated
 # XOM& CVX residuals show strongest correlation, followed by RTX& BA and KO&PG
 
-if (!require(corrr)) install.packages("corrr")
 error_df[,-1] %>% 
   correlate() %>% 
   rearrange() %>% 
@@ -632,7 +664,7 @@ VaR_cop_norm_NGARCH_df <- fortin_cgarch_VaR(
 )
 
 write.csv(VaR_cop_norm_NGARCH_df, 
-          "Data\\VaR\\Fortin_cop_norm_NGARCH.csv", row.names = FALSE)
+          "Results\\VaR\\Fortin_cop_norm_NGARCH.csv", row.names = FALSE)
 
 ## NGARCH t copula
 VaR_cop_t_NGARCH_df <- fortin_cgarch_VaR(
@@ -641,7 +673,7 @@ VaR_cop_t_NGARCH_df <- fortin_cgarch_VaR(
 )
 
 write.csv(VaR_cop_t_NGARCH_df, 
-          "Data\\VaR\\Fortin_cop_t_NGARCH.csv", row.names = FALSE)
+          "Results\\VaR\\Fortin_cop_t_NGARCH.csv", row.names = FALSE)
 
 
 
@@ -654,7 +686,7 @@ VaR_cop_norm_sGARCH_df <- fortin_cgarch_VaR(
   )
 
 write.csv(VaR_cop_norm_sGARCH_df, 
-          "Data\\VaR\\Fortin_cop_norm_sGARCH.csv", row.names = FALSE)
+          "Results\\VaR\\Fortin_cop_norm_sGARCH.csv", row.names = FALSE)
 
 
 ## sGARCH t copula
@@ -663,7 +695,7 @@ VaR_cop_t_sGARCH_df <- fortin_cgarch_VaR(
   ugarch_model = "GARCH", copula_dist = "t", error_mat = error_mat
   )
 write.csv(VaR_cop_t_sGARCH_df, 
-          "Data\\VaR\\Fortin_cop_t_sGARCH.csv", row.names = FALSE)
+          "Results\\VaR\\Fortin_cop_t_sGARCH.csv", row.names = FALSE)
 
 ## sGARCH skewt copula
 VaR_cop_skewt_sGARCH_df <- fortin_cgarch_VaR(
@@ -671,6 +703,6 @@ VaR_cop_skewt_sGARCH_df <- fortin_cgarch_VaR(
   ugarch_model = "GARCH", copula_dist = "skewt", error_mat = error_mat
   )
 write.csv(VaR_cop_skewt_sGARCH_df, 
-          "Data\\VaR\\Fortin_cop_skewt_sGARCH.csv", row.names = FALSE)
+          "Results\\VaR\\Fortin_cop_skewt_sGARCH.csv", row.names = FALSE)
 
 

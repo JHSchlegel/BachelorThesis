@@ -4,12 +4,22 @@
 
 # R version 4.2.2 (2022-10-31 ucrt)
 
-library(tidyverse) # for data manipulation
-library(yfR) # to load yahoo finance data
-library(zoo) 
-library(psych) # for summary statistics
-library(tseries) # for JB test
+if (!require(tidyverse)) install.packages("tidyverse") # for data manipulation
+if (!require(yfr)) install.packages("yfr") # for yahoo finance data
+if (!require(zoo)) install.packages("zoo") # for time series
+if (!require(psych)) install.packages("psych") # for summary statistics
+if (!require(tseries)) install.packages("tseries") # for JB test
+if (!require(mvoutlier)) install.packages("mvoutlier") # for chisq plots
+if (!require(scales)) install.packages("scales")  # to change alpha in plots
+if (!require(GGally)) install.packages("GGally") # for pairsplot
+if (!require(car)) install.packages("car")
+if (!require(pheatmap)) install.packages("pheatmap") # for correlation heatmap
+if (!require(corrr)) install.packages("corrr")
 
+
+
+
+# Set ggplot2 theme
 theme_set(theme_light())
 
 
@@ -222,8 +232,6 @@ summary_statistics(portfolio_plret_df, multiple.rets = FALSE)
 ###### Examining Relationship and Correlation Between Factors/ Shares #########
 #-----------------------------------------------------------------------------#
 ## Scatterplot Matrix
-if (!require(GGally)) install.packages("GGally")
-
 # function to add smoother to scatterplot matrix:
 add_smooth <- function(dataframe, mapping, method = "loess", ...){
   ggplot(data = dataframe, mapping = mapping)+
@@ -239,7 +247,6 @@ stocks_plret_df %>%
   GGally::ggpairs(lower = list(continuous = add_smooth))
 
 ## Correlation Heatmap
-if (!require(pheatmap)) install.packages("pheatmap")
 FFCFactors_df %>% 
   select(-Date, -RF) %>%
   cor() %>% 
@@ -270,7 +277,6 @@ stocks_plret_df %>%
 
 ## Network Plot of Correlation
 # highly correlated variables are clustered together in network plots:
-if (!require(corrr)) install.packages("corrr")
 FFCFactors_df %>% 
   select(-Date, -RF) %>% 
   correlate() %>% 
@@ -363,7 +369,6 @@ acf(abs(stocks_plret_df[,-1]), ci.col = "black") # high auto-& crosscorrelation
 #---------------------------------#
 ########### QQ-Plots ##############
 #---------------------------------#
-if (!require(car)) install.packages("car")
 qqPlot(portfolio_plret_df[,2], xlab = "Theoretical Normal Quantiles",
        ylab = "Sample Quantiles", main = "Portfolio")
 
@@ -386,12 +391,6 @@ for (i in 1:10){
 # nr of factors degrees of freedom
 # chi2 plot should be more or less linear
 
-
-
-
-
-if (!require(mvoutlier)) install.packages("mvoutlier") # for chisq plots
-if (!require(scales)) install.packages("scales")  # to change alpha in plots
 
 # redefine chisq.plot function (taken from github) from mvoutlier
 # for custom labeling:
