@@ -73,7 +73,6 @@ accuracy, or vice versa.
 │       └── Univariate_Models.R
 ├── Documents
 │   ├── BA_Thesis_ExecutiveSummary.pdf
-│   ├── BA_Thesis.pdf
 │   └── BA_Thesis_Tables.pdf
 └── README.md
 ```
