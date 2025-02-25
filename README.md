@@ -1,17 +1,15 @@
 # Bachelor's Thesis (HS2022)
 
+In this repository you can find the code of my Bachelor's thesis **"Portfolio Value at Risk Forecasting with GARCH-Type Models"** where I compared different GARCH-type models with respect to their ability to forecast the Value at Risk (VaR) of an equally weighted portfolio consisting of ten US large caps stocks. Most of my work revolved around implementing a *factor copula-DCC-(N)GARCH* model as described in Fortin et al. (2022).
+
 ## Table of Contents
 
-- [Introduction](#introduction)
 - [Contributors](#contributors)
 - [Abstract](#abstract)
 - [Repository Structure](#repository-structure)
 - [Usage](#usage)
 - [Acknowledgements](#acknowledgements)
 
-## Introduction
-
-In this repository you can find the code of my Bachelor's thesis **"Portfolio Value at Risk Forecasting with GARCH-Type Models"** where I compared different GARCH-type models with respect to their ability to forecast the Value at Risk (VaR) of an equally weighted portfolio consisting of ten US large caps stocks. Most of my work revolved around implementing a *factor copula-DCC-(N)GARCH* model as described in Fortin et al. (2022).
 
 ## Contributors
 
